@@ -1,0 +1,15 @@
+[[job]]
+title = "Check the local time"
+command = "/bin/date"
+intervalInSeconds = "1m10s"
+startTime = "12:00AM"
+endTime = "11:59PM"
+groupName = "Test"
+
+[[job]]
+title = "Check the UTC time"
+command = "/bin/date -u"
+intervalInSeconds = "3331m30s"
+startTime = "12:00AM"
+endTime = "11:59PM"
+groupName = "Test"
