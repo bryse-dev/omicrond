@@ -16,15 +16,15 @@ type JobConfig struct {
 }
 
 type JobHandler struct {
-  Jobs []JobConfig
+  Job []JobConfig
 }
 
 func (h *JobHandler) ParseJobConfig(confFile string) {
 
-	if _, err := toml.DecodeFile(confFile, &h); err != nil {
-		fmt.Println(err)
-		return
-	}
+  if _, err := toml.DecodeFile(confFile, &h); err != nil {
+    fmt.Println(err)
+    return
+  }
 }
 
 type durationObj struct {

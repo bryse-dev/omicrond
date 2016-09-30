@@ -15,7 +15,7 @@ func init() {
   // Set default configurations
   Attr.LogLevel = 0
   Attr.Port = 51515
-  Attr.SocketPath = "/tmp/omicrond.sock"
-  Attr.JobConfigPath = "/etc/omicron-jobs.toml"
+  Attr.SocketPath = "omicrond.sock"
+  Attr.JobConfigPath = "sample/samplejobConf.toml"
 
 }
