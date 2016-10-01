@@ -1,19 +1,28 @@
 package main
 
 import (
-	"flag"
-	"github.com/Sirupsen/logrus"
-	"github.com/brysearl/omicrond/conf"
+  "flag"
+  "github.com/Sirupsen/logrus"
+  "github.com/brysearl/omicrond/conf"
   "github.com/brysearl/omicrond/job"
   "github.com/davecgh/go-spew/spew"
 )
 
-var logLevel = flag.Int("debug", 0, "Set the debug level: 1 = Panic, 2 = Fatal, 3 = Error, 4 = Warn, 5 = Info, 6 = Debug")
-
 func init() {
 
+  // Configure command line arguments
+  var logLevelPtr = flag.Int("v", conf.Attr.LogLevel, "Set the debug level: 1 = Panic, 2 = Fatal, 3 = Error, 4 = Warn, 5 = Info, 6 = Debug")
+  var jobConfigPathPtr = flag.String("config", conf.Attr.JobConfigPath, "Path to the daemon configuration file")
+
+  // Retrieve command line arguments
+  flag.Parse()
+
+  // Set the path to the daemon config file
+  conf.Attr.JobConfigPath = *jobConfigPathPtr
+
   // Set the log level of the program
-  conf.Attr.LogLevel = *logLevel
+  conf.Attr.LogLevel = *logLevelPtr
+
   switch {
   case conf.Attr.LogLevel == 1:
     logrus.SetLevel(logrus.PanicLevel)
@@ -40,5 +49,5 @@ func main() {
   var handler = job.JobHandler{}
   handler.ParseJobConfig(conf.Attr.JobConfigPath)
 
-  spew.Dump(handler)
+  logrus.Debug(spew.Sdump(handler))
 }
