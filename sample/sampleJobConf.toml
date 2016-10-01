@@ -1,12 +1,29 @@
 [[job]]
-title = "Check the UTC time"
+title = "Test 1"
 command = "/bin/date -u"
 groupName = "Test"
-scheduleClassic = "* * * * *"
-[job.schedule]
-  [job.schedule.minute]
-    isInterval = true
-    interval = "1m"
-    startTime = ["12:00AM"]
-    endTime = "11:59PM"
+schedule = "0 0,12 1 */2 *"  # every 12am and 12pm on the 1st day of every 2nd month
 
+[[job]]
+title = "Test 2"
+command = "/bin/date -u"
+groupName = "Test"
+schedule = "0 4 15-21 * 1"  # every month at 4am on Mondays, and on the days between 15-21
+
+[[job]]
+title = "Test 3"
+command = "/bin/date -u"
+groupName = "Test"
+schedule = "0 4 * * 1,2,3,4,5"  # every day at 4am on M-F
+
+[[job]]
+title = "Test 4"
+command = "/bin/date -u"
+groupName = "Test"
+schedule = "0 4 * * 1-5"  # every day at 4am on M-F
+
+#exceptions
+#  start_time.dayOfWeek() == 1
+#  start_time.day >= 15 and start_time.day <= 21
+#  start_time.hour == 4
+#  start_time.minute == 0

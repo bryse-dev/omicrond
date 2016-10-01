@@ -47,7 +47,10 @@ func main() {
 
   logrus.Info("Reading job configuration file: " + conf.Attr.JobConfigPath)
   var handler = job.JobHandler{}
-  handler.ParseJobConfig(conf.Attr.JobConfigPath)
+  err := handler.ParseJobConfig(conf.Attr.JobConfigPath)
+  if err != nil {
+    logrus.Fatal(err)
+  }
 
   logrus.Debug(spew.Sdump(handler))
 }
