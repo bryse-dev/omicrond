@@ -1,6 +1,7 @@
 package main
 
 import (
+  "time"
   "flag"
   "github.com/Sirupsen/logrus"
   "github.com/brysearl/omicrond/conf"
@@ -47,7 +48,22 @@ func main() {
 
   logrus.Info("Reading job configuration file: " + conf.Attr.JobConfigPath)
   var handler = job.JobHandler{}
-  handler.ParseJobConfig(conf.Attr.JobConfigPath)
+  err := handler.ParseJobConfig(conf.Attr.JobConfigPath)
+  if err != nil {
+    logrus.Fatal(err)
+  }
 
   logrus.Debug(spew.Sdump(handler))
+
+  testTime, _ := time.Parse(time.RFC850, "Monday, 02-Jan-06 15:04:05 EST")
+  for _, j := range handler.Job {
+    for _, f := range j.Filters {
+      test := f(testTime)
+      if test == true {
+        logrus.Debug("test passed")
+      } else {
+        logrus.Debug("test failed")
+      }
+    }
+  }
 }
