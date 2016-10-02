@@ -66,11 +66,39 @@ func (j *JobConfig) ParseScheduleIntoFilters() (error) {
     }
     j.Filters = append(j.Filters, filterFunc)
   }
+  if scheduleChunks[MONTH] != "*" {
+    filterFunc, err := ParseMonthIntoFilter(scheduleChunks[MONTH])
+    if err != nil {
+      return err
+    }
+    j.Filters = append(j.Filters, filterFunc)
+  }
+  if scheduleChunks[DAY] != "*" {
+    filterFunc, err := ParseDayOfMonthIntoFilter(scheduleChunks[DAY])
+    if err != nil {
+      return err
+    }
+    j.Filters = append(j.Filters, filterFunc)
+  }
+  if scheduleChunks[HOUR] != "*" {
+    filterFunc, err := ParseHourIntoFilter(scheduleChunks[HOUR])
+    if err != nil {
+      return err
+    }
+    j.Filters = append(j.Filters, filterFunc)
+  }
+  if scheduleChunks[MINUTE] != "*" {
+    filterFunc, err := ParseMinuteIntoFilter(scheduleChunks[MINUTE])
+    if err != nil {
+      return err
+    }
+    j.Filters = append(j.Filters, filterFunc)
+  }
 
   return err
 }
 
-func (j *JobConfig) RunThroughFilters (timeToCheck time.Time) (bool) {
+func (j *JobConfig) RunThroughFilters(timeToCheck time.Time) (bool) {
 
   for _, filter := range j.Filters {
     result := filter(timeToCheck)
