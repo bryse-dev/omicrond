@@ -12,7 +12,7 @@ func ParseDayOfWeekIntoFilter(rawStr string) (func(testTime time.Time) (bool), e
 
   WeekDaysInt, err := parseScheduleStringToIntSlice(rawStr)
   if err != nil {
-    return nil,err
+    return nil, err
   }
 
   // Convert the slice of numbered weekdays to their proper names
@@ -36,13 +36,81 @@ func ParseDayOfWeekIntoFilter(rawStr string) (func(testTime time.Time) (bool), e
   return filterFunc, err
 }
 
+func ParseMonthIntoFilter(rawStr string) (func(testTime time.Time) (bool), error) {
+
+  scheduledMonthsInt, err := parseScheduleStringToIntSlice(rawStr)
+  if err != nil {
+    return nil, err
+  }
+  // Add the filter using the slice of ints
+  filterFunc := func(testTime time.Time) (bool) {
+    if intInSlice(int(testTime.Month()), scheduledMonthsInt) {
+      return true
+    }
+    return false
+  }
+
+  return filterFunc, err
+}
+
+func ParseDayOfMonthIntoFilter(rawStr string) (func(testTime time.Time) (bool), error) {
+
+  scheduledDaysOfMonthsInt, err := parseScheduleStringToIntSlice(rawStr)
+  if err != nil {
+    return nil, err
+  }
+  // Add the filter using the slice of ints
+  filterFunc := func(testTime time.Time) (bool) {
+    if intInSlice(testTime.Day(), scheduledDaysOfMonthsInt) {
+      return true
+    }
+    return false
+  }
+
+  return filterFunc, err
+}
+
+func ParseHourIntoFilter(rawStr string) (func(testTime time.Time) (bool), error) {
+
+  scheduledHoursInt, err := parseScheduleStringToIntSlice(rawStr)
+  if err != nil {
+    return nil, err
+  }
+  // Add the filter using the slice of ints
+  filterFunc := func(testTime time.Time) (bool) {
+    if intInSlice(testTime.Hour(), scheduledHoursInt) {
+      return true
+    }
+    return false
+  }
+
+  return filterFunc, err
+}
+
+func ParseMinuteIntoFilter(rawStr string) (func(testTime time.Time) (bool), error) {
+
+  scheduledMinutesInt, err := parseScheduleStringToIntSlice(rawStr)
+  if err != nil {
+    return nil, err
+  }
+  // Add the filter using the slice of ints
+  filterFunc := func(testTime time.Time) (bool) {
+    if intInSlice(testTime.Minute(), scheduledMinutesInt) {
+      return true
+    }
+    return false
+  }
+
+  return filterFunc, err
+}
+
 func parseScheduleStringToIntSlice(rawStr string) ([]int, error) {
 
   var elementStrNumSlice []string
   var elementIntSlice []int
   var err error
 
-  if proceed, _ := regexp.MatchString("^[0-6]$", rawStr); proceed == true {
+  if proceed, _ := regexp.MatchString("^[0-9]+$", rawStr); proceed == true {
 
     intValue, err := strconv.Atoi(rawStr)
     if err != nil {
@@ -51,7 +119,7 @@ func parseScheduleStringToIntSlice(rawStr string) ([]int, error) {
     elementIntSlice = append(elementIntSlice, intValue)
 
     // Create a slice of each day that is comma seperated
-  } else if proceed, _ := regexp.MatchString("^[0-6]+,.*$", rawStr); proceed == true {
+  } else if proceed, _ := regexp.MatchString("^[0-9]+,.*$", rawStr); proceed == true {
     elementStrNumSlice = strings.Split(rawStr, ",")
     for _, strValue := range elementStrNumSlice {
       intValue, err := strconv.Atoi(strValue)
@@ -62,7 +130,7 @@ func parseScheduleStringToIntSlice(rawStr string) ([]int, error) {
     }
 
     // Create a slice of each day that is range implied
-  } else if proceed, _ := regexp.MatchString("[0-6]+-[0-6]+", rawStr); proceed == true {
+  } else if proceed, _ := regexp.MatchString("[0-9]+-[0-9]+", rawStr); proceed == true {
     elementStrNumSlice = strings.Split(rawStr, "-")
     startDay, err := strconv.Atoi(elementStrNumSlice[0])
     if err != nil {
@@ -88,6 +156,15 @@ func parseScheduleStringToIntSlice(rawStr string) ([]int, error) {
 }
 
 func stringInSlice(a string, list []string) (bool) {
+  for _, b := range list {
+    if b == a {
+      return true
+    }
+  }
+  return false
+}
+
+func intInSlice(a int, list []int) (bool) {
   for _, b := range list {
     if b == a {
       return true

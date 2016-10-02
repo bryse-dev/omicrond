@@ -1,25 +1,125 @@
 [[testcase]]
   [testcase.job]
-    title = "Test 3"
-    command = "/bin/date -u"
-    groupName = "Test"
+    title = "Testcase 1: DayOfWeek with comma separated days"
+    command = "/bin/date"
+    groupName = "Unit Tests"
     schedule = "0 4 * * 1,2,3,4,5"  # every day at 4am on M-F
   [[testcase.test]]
+    description = "Should not run on Sunday at 4:00am"
     testtime = 2016-10-02T04:00:00
     expectedresult = false
   [[testcase.test]]
+    description = "Should run on Tuesday at 4:00am"
+    testtime = 2016-10-04T04:00:00
+    expectedresult = true
+  [[testcase.test]]
+    description = "Should not run on Tuesday at 4:01"
+    testtime = 2016-10-04T04:01:00
+    expectedresult = false
+  [[testcase.test]]
+    description = "Should not run on Tuesday at 5:00"
+    testtime = 2016-10-04T05:00:00
+    expectedresult = false
+
+[[testcase]]
+  [testcase.job]
+    title = "Testcase 2: DayOfWeek with range implication"
+    command = "/bin/date"
+    groupName = "Unit Tests"
+    schedule = "0 4 * * 1-5"  # every day at 4am on M-F
+  [[testcase.test]]
+    description = "Should not run on Sunday at 4:00am"
+    testtime = 2016-10-02T04:00:00
+    expectedresult = false
+  [[testcase.test]]
+    description = "Should run on Tuesday at 4:00am"
     testtime = 2016-10-04T04:00:00
     expectedresult = true
 
 [[testcase]]
   [testcase.job]
-    title = "Test 4"
-    command = "/bin/date -u"
-    groupName = "Test"
-    schedule = "0 4 * * 1-5"  # every day at 4am on M-F
+    title = "Testcase 3: Months"
+    command = "/bin/date"
+    groupName = "Unit Tests"
+    schedule = "0 0 * 10,11 *"  # every day at 12:00am in October and November
   [[testcase.test]]
-    testtime = 2016-10-02T04:00:00
+    description = "Should run on October 2nd at 12:00am"
+    testtime = 2016-10-02T00:00:00
+    expectedresult = true
+  [[testcase.test]]
+    description = "Should run on November 15th at 12:00am"
+    testtime = 2016-11-15T00:00:00
+    expectedresult = true
+  [[testcase.test]]
+    description = "Should not run on September 4th at 12:00am"
+    testtime = 2016-09-04T04:00:00
     expectedresult = false
   [[testcase.test]]
-    testtime = 2016-10-04T04:00:00
+    description = "Should not run on September 4th at 2:00pm"
+    testtime = 2016-09-04T14:00:00
+    expectedresult = false
+
+[[testcase]]
+  [testcase.job]
+    title = "Testcase 4: DayOfMonth"
+    command = "/bin/date"
+    groupName = "Unit Tests"
+    schedule = "0 * 7-14 * *"  # every hour on the 7th through the 14th of every month
+  [[testcase.test]]
+    description = "Should run on December 7th at 8:00am"
+    testtime = 2016-12-07T08:00:00
     expectedresult = true
+  [[testcase.test]]
+    description = "Should run on January 14th at 11:00pm"
+    testtime = 2016-01-14T23:00:00
+    expectedresult = true
+  [[testcase.test]]
+    description = "Should not run on December 15th at 1:00pm"
+    testtime = 2016-12-15T13:00:00
+    expectedresult = false
+  [[testcase.test]]
+    description = "Should not run on March 1st at 12:00pm"
+    testtime = 2016-03-01T12:00:00
+    expectedresult = false
+  [[testcase.test]]
+    description = "Should not run on October 12th at 9:01am"
+    testtime = 2016-10-12T09:01:00
+    expectedresult = false
+
+[[testcase]]
+  [testcase.job]
+    title = "Testcase 5: Hour"
+    command = "/bin/date"
+    groupName = "Unit Tests"
+    schedule = "* 4 * * *"  # every minute between 4:00am and 5:00am
+  [[testcase.test]]
+    description = "Should run on December 11th at 4:00am"
+    testtime = 2016-12-11T04:00:00
+    expectedresult = true
+  [[testcase.test]]
+    description = "Should run on December 11th at 4:59am"
+    testtime = 2016-12-11T04:59:00
+    expectedresult = true
+  [[testcase.test]]
+    description = "Should not run on December 11th at 3:59am"
+    testtime = 2016-12-11T03:59:00
+    expectedresult = false
+  [[testcase.test]]
+    description = "Should not run on December 11th at 5:01am"
+    testtime = 2016-12-11T05:01:00
+    expectedresult = false
+
+[[testcase]]
+  [testcase.job]
+    title = "Testcase 5: Minute"
+    command = "/bin/date"
+    groupName = "Unit Tests"
+    schedule = "0,10,20,30,40,50 * * * *"  # every 10 minutes
+  [[testcase.test]]
+    description = "Should run on May 6th at 4:10pm"
+    testtime = 2016-05-06T16:10:00
+    expectedresult = true
+  [[testcase.test]]
+    description = "Should not run on May 6th at 4:15pm"
+    testtime = 2016-05-06T16:15:00
+    expectedresult = false

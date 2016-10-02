@@ -7,8 +7,6 @@ import (
   "github.com/Sirupsen/logrus"
   "github.com/BurntSushi/toml"
   . "github.com/smartystreets/goconvey/convey"
-  "github.com/davecgh/go-spew/spew"
-
 )
 
 const MYSQLDATETIMELAYOUT = "2006-01-02 15:04:05"
@@ -18,19 +16,19 @@ type TestingJobHandler struct {
 }
 
 type TestingJob struct {
-  Job   JobConfig
+  Job  JobConfig
   Test []TestConfig
 }
 
 type TestConfig struct {
+  Description    string
   TestTime       time.Time
   ExpectedResult bool
-
 }
 
 func (h *TestingJobHandler) ParseTestJobConfig(confFile string) (error) {
 
-  fmt.Println("decoding file")
+  fmt.Println("Parsing unit-test file: " + confFile)
   _, err := toml.DecodeFile(confFile, &h)
   if err != nil {
     return err
@@ -52,7 +50,6 @@ func TestJobParseAndFilterCreation(t *testing.T) {
   if err != nil {
     fmt.Println(err)
   }
-  spew.Dump(handler)
 
   for testCaseIndex, testCase := range handler.TestCase {
     for _, test := range testCase.Test {
