@@ -8,11 +8,12 @@ import (
   "strconv"
 )
 
-func ParseDayOfWeekIntoFilter(rawStr string) (func(currentTime time.Time) (bool), error) {
-
-  var err error
+func ParseDayOfWeekIntoFilter(rawStr string) (func(testTime time.Time) (bool), error) {
 
   WeekDaysInt, err := parseScheduleStringToIntSlice(rawStr)
+  if err != nil {
+    return nil,err
+  }
 
   // Convert the slice of numbered weekdays to their proper names
   var scheduledWeekDays []string
@@ -25,8 +26,8 @@ func ParseDayOfWeekIntoFilter(rawStr string) (func(currentTime time.Time) (bool)
   }
 
   // Add the filter using the slice of allowed weekdays
-  filterFunc := func(currentTime time.Time) (bool) {
-    if stringInSlice(currentTime.Weekday().String(), scheduledWeekDays) {
+  filterFunc := func(testTime time.Time) (bool) {
+    if stringInSlice(testTime.Weekday().String(), scheduledWeekDays) {
       return true
     }
     return false

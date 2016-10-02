@@ -70,3 +70,15 @@ func (j *JobConfig) ParseScheduleIntoFilters() (error) {
   return err
 }
 
+func (j *JobConfig) RunThroughFilters (timeToCheck time.Time) (bool) {
+
+  for _, filter := range j.Filters {
+    result := filter(timeToCheck)
+    if result == false {
+      return false
+    }
+  }
+
+  return true
+}
+
