@@ -12,3 +12,6 @@ Planned features:
 *  Jobs can be grouped allowing:
  * staggered start times (group of 5 jobs spaced between start_window and stop_window)
 *  NTP integration
+
+Future frontend:
+* Gorilla MUX

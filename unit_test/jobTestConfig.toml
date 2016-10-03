@@ -123,3 +123,41 @@
     description = "Should not run on May 6th at 4:15pm"
     testtime = 2016-05-06T16:15:00
     expectedresult = false
+
+[[testcase]]
+  [testcase.job]
+    title = "Testcase 6: Every 10 Minutes"
+    command = "/bin/date"
+    groupName = "Unit Tests"
+    schedule = "*/10 * * * *"  # every 10 minutes
+  [[testcase.test]]
+    description = "Should run on May 6th at 4:10pm"
+    testtime = 2016-05-06T16:10:00
+    expectedresult = true
+  [[testcase.test]]
+    description = "Should not run on May 6th at 4:15pm"
+    testtime = 2016-05-06T16:15:00
+    expectedresult = false
+  [[testcase.test]]
+    description = "Should run on May 6th at 4:20pm"
+    testtime = 2016-05-06T16:20:00
+    expectedresult = true
+
+[[testcase]]
+  [testcase.job]
+    title = "Testcase 7: Every 3 Hours"
+    command = "/bin/date"
+    groupName = "Unit Tests"
+    schedule = "0 */3 * * *"  # every 10 minutes
+  [[testcase.test]]
+    description = "Should run on May 6th at 3:00am"
+    testtime = 2016-05-06T03:00:00
+    expectedresult = true
+  [[testcase.test]]
+    description = "Should not run on May 6th at 4:00am"
+    testtime = 2016-05-06T04:00:00
+    expectedresult = false
+  [[testcase.test]]
+    description = "Should run on May 6th at 6:00am"
+    testtime = 2016-05-06T06:00:00
+    expectedresult = true
