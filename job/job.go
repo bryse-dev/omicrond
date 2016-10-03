@@ -22,10 +22,12 @@ const (
   SATURDAY = "Saturday"
 )
 
+// JobHandler - Keep all the jobs together in an iterable slice
 type JobHandler struct {
   Job []JobConfig
 }
 
+// JobConfig - Object representing a single scheduled job
 type JobConfig struct {
   Title     string // The name of the job.  Used in logging
   Command   string // String to be run on the system
@@ -34,6 +36,7 @@ type JobConfig struct {
   Filters   []func(currentTime time.Time) (bool)
 }
 
+// ParseJobConfig - Decode TOML config file and initiate ParseScheduleIntoFilters for each job
 func (h *JobHandler) ParseJobConfig(confFile string) (error) {
 
   _, err := toml.DecodeFile(confFile, &h)
@@ -50,6 +53,7 @@ func (h *JobHandler) ParseJobConfig(confFile string) (error) {
   return err
 }
 
+// ParseScheduleIntoFilters - Translate schedule string into iterable functions
 func (j *JobConfig) ParseScheduleIntoFilters() (error) {
 
   var err error
@@ -66,6 +70,7 @@ func (j *JobConfig) ParseScheduleIntoFilters() (error) {
     }
     j.Filters = append(j.Filters, filterFunc)
   }
+  // Add filter to limit to only certain months
   if scheduleChunks[MONTH] != "*" {
     filterFunc, err := ParseMonthIntoFilter(scheduleChunks[MONTH])
     if err != nil {
@@ -73,6 +78,7 @@ func (j *JobConfig) ParseScheduleIntoFilters() (error) {
     }
     j.Filters = append(j.Filters, filterFunc)
   }
+  // Add filter to limit to only certain days
   if scheduleChunks[DAY] != "*" {
     filterFunc, err := ParseDayOfMonthIntoFilter(scheduleChunks[DAY])
     if err != nil {
@@ -80,6 +86,7 @@ func (j *JobConfig) ParseScheduleIntoFilters() (error) {
     }
     j.Filters = append(j.Filters, filterFunc)
   }
+  // Add filter to limit to only certain hours
   if scheduleChunks[HOUR] != "*" {
     filterFunc, err := ParseHourIntoFilter(scheduleChunks[HOUR])
     if err != nil {
@@ -87,6 +94,7 @@ func (j *JobConfig) ParseScheduleIntoFilters() (error) {
     }
     j.Filters = append(j.Filters, filterFunc)
   }
+  // Add filter to limit to only certain minutes
   if scheduleChunks[MINUTE] != "*" {
     filterFunc, err := ParseMinuteIntoFilter(scheduleChunks[MINUTE])
     if err != nil {
@@ -98,6 +106,7 @@ func (j *JobConfig) ParseScheduleIntoFilters() (error) {
   return err
 }
 
+// RunThroughFilters - Initiates each filter for a job and returns whether or not to run the job
 func (j *JobConfig) RunThroughFilters(timeToCheck time.Time) (bool) {
 
   for _, filter := range j.Filters {
