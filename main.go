@@ -6,8 +6,8 @@ import (
   "github.com/Sirupsen/logrus"
   "github.com/brysearl/omicrond/conf"
   "github.com/brysearl/omicrond/job"
-  "github.com/davecgh/go-spew/spew"
 )
+//"github.com/davecgh/go-spew/spew"
 
 func init() {
 
@@ -47,23 +47,46 @@ func main() {
   logrus.Info("Starting")
 
   logrus.Info("Reading job configuration file: " + conf.Attr.JobConfigPath)
-  var handler = job.JobHandler{}
-  err := handler.ParseJobConfig(conf.Attr.JobConfigPath)
+  var schedule = job.JobHandler{}
+  err := schedule.ParseJobConfig(conf.Attr.JobConfigPath)
   if err != nil {
     logrus.Fatal(err)
   }
 
-  logrus.Debug(spew.Sdump(handler))
+  logrus.Info("Starting scheduling loop")
+  startSchedulingLoop(schedule)
+}
 
-  testTime, _ := time.Parse(time.RFC850, "Monday, 02-Jan-06 15:04:05 EST")
-  for _, j := range handler.Job {
-    for _, f := range j.Filters {
-      test := f(testTime)
-      if test == true {
-        logrus.Debug("test passed")
-      } else {
-        logrus.Debug("test failed")
+// startSchedulingLoop - Endless loop that checks jobs every minute and executes them if scheduled
+func startSchedulingLoop(schedule job.JobHandler) {
+
+  // Keep track of the last minute that was run.  This way we can sit quietly until the next minute comes.
+  lastCheckTime := time.Now().Truncate(time.Minute)
+
+  // To infinity, and beyond
+  for {
+
+    // Get the current minute with the seconds rounded down
+    currentTime := time.Now().Truncate(time.Minute)
+
+
+    // Wait patiently for a new minute
+    if currentTime != lastCheckTime {
+
+      //Check each configured job to see if it needs to be run in this minute
+      logrus.Info("Running filters: " + currentTime.String())
+      for jobIndex, _ := range schedule.Job {
+        logrus.Debug("Checking: " + schedule.Job[jobIndex].Title)
+        runJob := schedule.Job[jobIndex].CheckIfScheduled(currentTime)
+
+        if runJob == true {
+          go schedule.Job[jobIndex].Run()
+        }
       }
     }
+
+    // Update the minute lock and take a break
+    lastCheckTime = currentTime
+    time.Sleep(time.Second)
   }
 }

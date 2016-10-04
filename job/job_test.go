@@ -55,7 +55,7 @@ func TestJobParseAndFilterCreation(t *testing.T) {
     for _, test := range testCase.Test {
 
       //Run test
-      result := testCase.Job.RunThroughFilters(test.TestTime)
+      result := testCase.Job.CheckIfScheduled(test.TestTime)
 
       var verb string
       if test.ExpectedResult == true {

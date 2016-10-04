@@ -1,29 +1,18 @@
 [[job]]
-title = "Test 1"
-command = "/bin/date -u"
+title = "Minutely"
+exec = "/sbin/ping -c 10 127.0.0.1"
 groupName = "Test"
-schedule = "0 0,12 1 */2 *"  # every 12am and 12pm on the 1st day of every 2nd month
+schedule = "* * * * *"  # every minute
 
 [[job]]
-title = "Test 2"
-command = "/bin/date -u"
+title = "Quarter Hourly"
+exec = "/sbin/ping -c 10 127.0.0.1"
 groupName = "Test"
-schedule = "0 4 15-21 * 1"  # every month at 4am on Mondays, and on the days between 15-21
+schedule = "*/15 * * * *"  # every qhour
 
 [[job]]
-title = "Test 3"
-command = "/bin/date -u"
+title = "Hourly"
+exec = "/sbin/ping -c 10 127.0.0.1"
 groupName = "Test"
-schedule = "0 4 * * 1,2,3,4,5"  # every day at 4am on M-F
+schedule = "0 * * * *"  # every hour
 
-[[job]]
-title = "Test 4"
-command = "/bin/date -u"
-groupName = "Test"
-schedule = "0 4 * * 1-5"  # every day at 4am on M-F
-
-#exceptions
-#  start_time.dayOfWeek() == 1
-#  start_time.day >= 15 and start_time.day <= 21
-#  start_time.hour == 4
-#  start_time.minute == 0

@@ -1,7 +1,7 @@
 [[testcase]]
   [testcase.job]
     title = "Testcase 1: DayOfWeek with comma separated days"
-    command = "/bin/date"
+    exec = "/bin/date"
     groupName = "Unit Tests"
     schedule = "0 4 * * 1,2,3,4,5"  # every day at 4am on M-F
   [[testcase.test]]
@@ -24,7 +24,7 @@
 [[testcase]]
   [testcase.job]
     title = "Testcase 2: DayOfWeek with range implication"
-    command = "/bin/date"
+    exec = "/bin/date"
     groupName = "Unit Tests"
     schedule = "0 4 * * 1-5"  # every day at 4am on M-F
   [[testcase.test]]
@@ -39,7 +39,7 @@
 [[testcase]]
   [testcase.job]
     title = "Testcase 3: Months"
-    command = "/bin/date"
+    exec = "/bin/date"
     groupName = "Unit Tests"
     schedule = "0 0 * 10,11 *"  # every day at 12:00am in October and November
   [[testcase.test]]
@@ -62,7 +62,7 @@
 [[testcase]]
   [testcase.job]
     title = "Testcase 4: DayOfMonth"
-    command = "/bin/date"
+    exec = "/bin/date"
     groupName = "Unit Tests"
     schedule = "0 * 7-14 * *"  # every hour on the 7th through the 14th of every month
   [[testcase.test]]
@@ -89,7 +89,7 @@
 [[testcase]]
   [testcase.job]
     title = "Testcase 5: Hour"
-    command = "/bin/date"
+    exec = "/bin/date"
     groupName = "Unit Tests"
     schedule = "* 4 * * *"  # every minute between 4:00am and 5:00am
   [[testcase.test]]
@@ -112,7 +112,7 @@
 [[testcase]]
   [testcase.job]
     title = "Testcase 5: Minute"
-    command = "/bin/date"
+    exec = "/bin/date"
     groupName = "Unit Tests"
     schedule = "0,10,20,30,40,50 * * * *"  # every 10 minutes
   [[testcase.test]]
@@ -127,7 +127,7 @@
 [[testcase]]
   [testcase.job]
     title = "Testcase 6: Every 10 Minutes"
-    command = "/bin/date"
+    exec = "/bin/date"
     groupName = "Unit Tests"
     schedule = "*/10 * * * *"  # every 10 minutes
   [[testcase.test]]
@@ -146,7 +146,7 @@
 [[testcase]]
   [testcase.job]
     title = "Testcase 7: Every 3 Hours"
-    command = "/bin/date"
+    exec = "/bin/date"
     groupName = "Unit Tests"
     schedule = "0 */3 * * *"  # every 10 minutes
   [[testcase.test]]
