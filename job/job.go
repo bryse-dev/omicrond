@@ -4,7 +4,10 @@ import (
   "errors"
   "strings"
   "time"
+  "os/exec"
+  "bytes"
   "github.com/BurntSushi/toml"
+  "github.com/Sirupsen/logrus"
 )
 
 const (
@@ -30,10 +33,44 @@ type JobHandler struct {
 // JobConfig - Object representing a single scheduled job
 type JobConfig struct {
   Title     string // The name of the job.  Used in logging
-  Command   string // String to be run on the system
+  Exec      CmdObj // String to be run on the system
   GroupName string // Used to relate jobs and in logging *unused*
   Schedule  string // Traditional encoded string to represent the schedule
   Filters   []func(currentTime time.Time) (bool)
+}
+
+
+// CheckIfScheduled - Initiates each filter for a job and returns whether or not to run the job
+func (j *JobConfig) CheckIfScheduled(timeToCheck time.Time) (bool) {
+
+  for _, filter := range j.Filters {
+    result := filter(timeToCheck)
+    if result == false {
+      return false
+    }
+  }
+
+  return true
+}
+
+// Run - Executes command
+func (j *JobConfig) Run() error {
+
+  var err error
+  //stdOut, err := j.Exec.Cmd.StdoutPipe()
+  // stdIn, err := j.Exec.Cmd.StdinPipe()
+  // stdErr, err := j.Exec.Cmd.StderrPipe()
+  var stdOut bytes.Buffer
+	j.Exec.Cmd.Stdout = &stdOut
+
+  logrus.Info("Running [" + j.Title + "]: " + j.Exec.Cmd.Path)
+  err = j.Exec.Cmd.Start()
+
+  //go io.Copy(os.Stdout, stdOut)
+  j.Exec.Cmd.Wait()
+
+  logrus.Info(stdOut.String())
+  return err
 }
 
 // ParseJobConfig - Decode TOML config file and initiate ParseScheduleIntoFilters for each job
@@ -50,6 +87,19 @@ func (h *JobHandler) ParseJobConfig(confFile string) (error) {
       return err
     }
   }
+  return err
+}
+
+// CmdObj - Custom struct to enable a custom unmarshaler
+type CmdObj struct {
+  exec.Cmd
+}
+
+// UnmarshalText - Custom unmarshaler to build exec.Cmd type on JobConfig
+func (c *CmdObj) UnmarshalText(text []byte) error {
+  var err error
+  cmdPtr := exec.Command(string(text))
+  c.Cmd = *cmdPtr
   return err
 }
 
@@ -104,18 +154,5 @@ func (j *JobConfig) ParseScheduleIntoFilters() (error) {
   }
 
   return err
-}
-
-// RunThroughFilters - Initiates each filter for a job and returns whether or not to run the job
-func (j *JobConfig) RunThroughFilters(timeToCheck time.Time) (bool) {
-
-  for _, filter := range j.Filters {
-    result := filter(timeToCheck)
-    if result == false {
-      return false
-    }
-  }
-
-  return true
 }
 
