@@ -5,7 +5,7 @@ import (
   "strings"
   "time"
   "os/exec"
-  "bytes"
+  "bufio"
   "github.com/BurntSushi/toml"
   "github.com/Sirupsen/logrus"
 )
@@ -39,6 +39,7 @@ type JobConfig struct {
   Filters   []func(currentTime time.Time) (bool)
 }
 
+///////////////// SCHEDULING FUNCTIONS //////////////////////
 
 // CheckIfScheduled - Initiates each filter for a job and returns whether or not to run the job
 func (j *JobConfig) CheckIfScheduled(timeToCheck time.Time) (bool) {
@@ -54,24 +55,59 @@ func (j *JobConfig) CheckIfScheduled(timeToCheck time.Time) (bool) {
 }
 
 // Run - Executes command
-func (j *JobConfig) Run() error {
+func (j *JobConfig) Run() {
 
   var err error
-  //stdOut, err := j.Exec.Cmd.StdoutPipe()
-  // stdIn, err := j.Exec.Cmd.StdinPipe()
-  // stdErr, err := j.Exec.Cmd.StderrPipe()
-  var stdOut bytes.Buffer
-	j.Exec.Cmd.Stdout = &stdOut
 
-  logrus.Info("Running [" + j.Title + "]: " + j.Exec.Cmd.Path)
-  err = j.Exec.Cmd.Start()
+  // Have to make a copy of the exec.Cmd object since it cannot be reused nor reset
+  command := j.Exec.Cmd
 
-  //go io.Copy(os.Stdout, stdOut)
-  j.Exec.Cmd.Wait()
+  // Create handles for both stdin and stdout
+  stdOut, err := command.StdoutPipe()
+  if err != nil {
+    logrus.Error(err)
+    return
+  }
+  stdErr, err := command.StderrPipe()
+  if err != nil {
+    logrus.Error(err)
+    return
+  }
 
-  logrus.Info(stdOut.String())
-  return err
+  // Attach scanners to the IO handles
+  stdOutScanner := bufio.NewScanner(stdOut)
+  stdErrScanner := bufio.NewScanner(stdErr)
+
+  // Spawn goroutines to effectively tail the IO scanners
+  go func() {
+    for stdOutScanner.Scan() {
+      logrus.Debug("STDOUT | " + stdOutScanner.Text())
+    }
+  }()
+
+  go func() {
+    for stdErrScanner.Scan() {
+      logrus.Debug("STDERR | " + stdErrScanner.Text())
+    }
+  }()
+
+  // Start the command
+  logrus.Info("Running [" + j.Title + "]: " + strings.Join(command.Args, " "))
+  err = command.Start()
+  if err != nil {
+    logrus.Error(err)
+    return
+  }
+
+  // Wait for the command to complete
+  logrus.Debug("Waiting for command to complete")
+  command.Wait()
+  logrus.Debug("Command completed")
+
+  return
 }
+
+///////////////// SETUP FUNCTIONS //////////////////////
 
 // ParseJobConfig - Decode TOML config file and initiate ParseScheduleIntoFilters for each job
 func (h *JobHandler) ParseJobConfig(confFile string) (error) {
@@ -98,7 +134,18 @@ type CmdObj struct {
 // UnmarshalText - Custom unmarshaler to build exec.Cmd type on JobConfig
 func (c *CmdObj) UnmarshalText(text []byte) error {
   var err error
-  cmdPtr := exec.Command(string(text))
+
+  // Split on spaces
+  components := strings.Split(string(text), " ")
+  if len(components) == 0 {
+    return errors.New("Missing exec command in job configuration")
+  }
+
+  // Shift off the executable from the arguments
+  executable, components := components[0], components[1:]
+
+  // Create the exec.Cmd object and attach to JobConfig
+  cmdPtr := exec.Command(executable, components...)
   c.Cmd = *cmdPtr
   return err
 }

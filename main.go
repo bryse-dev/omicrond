@@ -7,6 +7,7 @@ import (
   "github.com/brysearl/omicrond/conf"
   "github.com/brysearl/omicrond/job"
 )
+//"github.com/davecgh/go-spew/spew"
 
 func init() {
 
@@ -60,29 +61,32 @@ func main() {
 func startSchedulingLoop(schedule job.JobHandler) {
 
   // Keep track of the last minute that was run.  This way we can sit quietly until the next minute comes.
-  lastCheckTime := time.Now().Truncate(1 * time.Minute)
+  lastCheckTime := time.Now().Truncate(time.Minute)
 
   // To infinity, and beyond
   for {
 
     // Get the current minute with the seconds rounded down
-    currentTime := time.Now().Truncate(1 * time.Minute)
+    currentTime := time.Now().Truncate(time.Minute)
+
 
     // Wait patiently for a new minute
     if currentTime != lastCheckTime {
 
       //Check each configured job to see if it needs to be run in this minute
       logrus.Info("Running filters: " + currentTime.String())
-      for _, job := range schedule.Job {
-        runJob := job.CheckIfScheduled(currentTime)
+      for jobIndex, _ := range schedule.Job {
+        logrus.Debug("Checking: " + schedule.Job[jobIndex].Title)
+        runJob := schedule.Job[jobIndex].CheckIfScheduled(currentTime)
 
         if runJob == true {
-          go job.Run()
+          go schedule.Job[jobIndex].Run()
         }
       }
     }
 
+    // Update the minute lock and take a break
     lastCheckTime = currentTime
-    time.Sleep(1 * time.Second)
+    time.Sleep(time.Second)
   }
 }
