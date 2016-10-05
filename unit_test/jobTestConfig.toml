@@ -161,3 +161,30 @@
     description = "Should run on May 6th at 6:00am"
     testtime = 2016-05-06T06:00:00
     expectedresult = true
+
+[[testcase]]
+  [testcase.job]
+    title = "Testcase 8: Complex Format"
+    exec = "/bin/date"
+    groupName = "Unit Tests"
+    schedule = "*/10,15,43-47 * * * *"  # every 10 minutes
+  [[testcase.test]]
+    description = "Should run on the hour"
+    testtime = 2016-05-06T03:00:00
+    expectedresult = true
+  [[testcase.test]]
+    description = "Should run on a quarter past the hour"
+    testtime = 2016-05-06T04:15:00
+    expectedresult = true
+  [[testcase.test]]
+    description = "Should run on 44 minutes past the hour"
+    testtime = 2016-05-06T05:44:00
+    expectedresult = true
+  [[testcase.test]]
+    description = "Should not run on a minute past the hour"
+    testtime = 2016-05-06T14:01:00
+    expectedresult = false
+  [[testcase.test]]
+    description = "Should not run on 41 past the hour"
+    testtime = 2016-05-06T14:41:00
+    expectedresult = false

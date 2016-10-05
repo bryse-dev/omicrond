@@ -129,61 +129,58 @@ func ParseMinuteIntoFilter(rawStr string) (func(testTime time.Time) (bool), erro
 //  the shorthand schedule notation for an interval (ex '*/5')
 func parseScheduleStringToIntMap(rawStr string) (map[int]bool, int, error) {
 
-  var elementStrNumSlice []string // Slice of stringified integers that need to be converted into ints
-  elementIntMap := make(map[int]bool) // Slice of integers after being Atoi-ed from elementStrNumSlice
   var err error
+  var elementStrNumSlice []string // Slice of stringified integers that need to be converted into ints
+  elementIntMap := make(map[int]bool) // Map of integers after being Atoi-ed from elementStrNumSlice
   intervalModulo := 1 // Interval operand.  Default 1 so that it will always equal true if checked
 
-  // Set the intervalModulo if the shorthand interval notation is used
-  if proceed, _ := regexp.MatchString("^" + regexp.QuoteMeta("*/") + "[0-9]+$", rawStr); proceed == true {
-    re := regexp.MustCompile("^" + regexp.QuoteMeta("*/") + "([0-9]+)$")
-    matches := re.FindStringSubmatch(rawStr)
-    intervalModulo, err = strconv.Atoi(matches[1])
+  elementStrNumSlice = strings.Split(rawStr, ",")
+  for _, elementStrNum := range elementStrNumSlice {
 
-    if err != nil {
-      return nil, intervalModulo, err
-    }
-    // Create a (single element) slice of a single implicit time scope
-  } else if proceed, _ := regexp.MatchString("^[0-9]+$", rawStr); proceed == true {
+    if proceed, _ := regexp.MatchString("^" + regexp.QuoteMeta("*/") + "[0-9]+$", elementStrNum); proceed == true {
+      re := regexp.MustCompile("^" + regexp.QuoteMeta("*/") + "([0-9]+)$")
+      matches := re.FindStringSubmatch(elementStrNum)
+      intervalModulo, err = strconv.Atoi(matches[1])
 
-    intValue, err := strconv.Atoi(rawStr)
-    if err != nil {
-      return nil, intervalModulo, err
-    }
-    elementIntMap[intValue] = true
+      if err != nil {
+        return nil, intervalModulo, err
+      }
+      // Create a (single element) slice of a single implicit time scope
+    } else if proceed, _ := regexp.MatchString("^[0-9]+$", elementStrNum); proceed == true {
 
-    // Create a slice of each time scope that is comma seperated
-  } else if proceed, _ := regexp.MatchString("^[0-9]+,.*$", rawStr); proceed == true {
-    elementStrNumSlice = strings.Split(rawStr, ",")
-    for _, strValue := range elementStrNumSlice {
-      intValue, err := strconv.Atoi(strValue)
+      intValue, err := strconv.Atoi(elementStrNum)
       if err != nil {
         return nil, intervalModulo, err
       }
       elementIntMap[intValue] = true
-    }
+    } else if proceed, _ := regexp.MatchString("[0-9]+-[0-9]+", elementStrNum); proceed == true {
+      elementStrNumSlice = strings.Split(elementStrNum, "-")
+      startDay, err := strconv.Atoi(elementStrNumSlice[0])
+      if err != nil {
+        return nil, intervalModulo, err
+      }
+      endDay, err := strconv.Atoi(elementStrNumSlice[1])
+      if err != nil {
+        return nil, intervalModulo, err
+      }
+      if (startDay < endDay) {
+        for i := startDay; i <= endDay; i++ {
+          elementIntMap[i] = true
+        }
+      } else {
+        return nil, intervalModulo, errors.New("Element range implication is not smaller to larger.  ")
+      }
+    } else if proceed, _ := regexp.MatchString("^" + regexp.QuoteMeta("*/") + "[0-9]+$", elementStrNum); proceed == true {
+      re := regexp.MustCompile("^" + regexp.QuoteMeta("*/") + "([0-9]+)$")
+      matches := re.FindStringSubmatch(elementStrNum)
+      intervalModulo, err = strconv.Atoi(matches[1])
 
-    // Create a slice of each time scope that is range implied
-  } else if proceed, _ := regexp.MatchString("[0-9]+-[0-9]+", rawStr); proceed == true {
-    elementStrNumSlice = strings.Split(rawStr, "-")
-    startDay, err := strconv.Atoi(elementStrNumSlice[0])
-    if err != nil {
-      return nil, intervalModulo, err
-    }
-    endDay, err := strconv.Atoi(elementStrNumSlice[1])
-    if err != nil {
-      return nil, intervalModulo, err
-    }
-    if (startDay < endDay) {
-      for i := startDay; i <= endDay; i++ {
-        elementIntMap[i] = true
+      if err != nil {
+        return nil, intervalModulo, err
       }
     } else {
-      return nil, intervalModulo, errors.New("Element range implication is not smaller to larger.  ")
+      return nil,intervalModulo, errors.New("Could not parse [" + elementStrNum + "] of " + rawStr)
     }
-    // Something is wrong with the string to parse, return error
-  } else {
-    return nil, intervalModulo, errors.New("Could not parse element string '" + rawStr + "'")
   }
 
   return elementIntMap, intervalModulo, err
