@@ -13,24 +13,25 @@ import (
 func ParseDayOfWeekIntoFilter(rawStr string) (func(testTime time.Time) (bool), error) {
 
   // Run regex parsers against schedule string notation
-  WeekDaysInt, _, err := parseScheduleStringToIntSlice(rawStr)
+  WeekDaysIntMap, _, err := parseScheduleStringToIntMap(rawStr)
   if err != nil {
     return nil, err
   }
 
   // Convert the slice of numbered weekdays to their proper names
-  var scheduledWeekDays []string
-  for _, intValue := range WeekDaysInt {
+  scheduledWeekDaysStringMap := make(map[string]bool)
+  for intValue, _ := range WeekDaysIntMap {
     dayName, err := intToDayOfWeek(intValue)
     if err != nil {
       return nil, err
     }
-    scheduledWeekDays = append(scheduledWeekDays, dayName)
+    scheduledWeekDaysStringMap[dayName] = true
   }
 
   // Add the filter using the slice of allowed weekdays
   filterFunc := func(testTime time.Time) (bool) {
-    if stringInSlice(testTime.Weekday().String(), scheduledWeekDays) {
+    _, isScheduled := scheduledWeekDaysStringMap[testTime.Weekday().String()]
+    if isScheduled == true {
       return true
     }
     return false
@@ -44,13 +45,14 @@ func ParseDayOfWeekIntoFilter(rawStr string) (func(testTime time.Time) (bool), e
 func ParseMonthIntoFilter(rawStr string) (func(testTime time.Time) (bool), error) {
 
   // Run regex parsers against schedule string notation
-  scheduledMonthsInt, modulo, err := parseScheduleStringToIntSlice(rawStr)
+  scheduledMonthsIntMap, intervalModulo, err := parseScheduleStringToIntMap(rawStr)
   if err != nil {
     return nil, err
   }
   // Add the filter using the slice of ints
   filterFunc := func(testTime time.Time) (bool) {
-    if intInSlice(int(testTime.Month()), scheduledMonthsInt) || (int(testTime.Month()) % modulo == 0 && modulo > 1) {
+    _, isScheduled := scheduledMonthsIntMap[int(testTime.Month())]
+    if isScheduled == true || (int(testTime.Month()) % intervalModulo == 0 && intervalModulo > 1) {
       return true
     }
     return false
@@ -64,13 +66,14 @@ func ParseMonthIntoFilter(rawStr string) (func(testTime time.Time) (bool), error
 func ParseDayOfMonthIntoFilter(rawStr string) (func(testTime time.Time) (bool), error) {
 
   // Run regex parsers against schedule string notation
-  scheduledDaysOfMonthsInt, modulo, err := parseScheduleStringToIntSlice(rawStr)
+  scheduledDaysOfMonthsIntMap, intervalModulo, err := parseScheduleStringToIntMap(rawStr)
   if err != nil {
     return nil, err
   }
   // Add the filter using the slice of ints
   filterFunc := func(testTime time.Time) (bool) {
-    if intInSlice(testTime.Day(), scheduledDaysOfMonthsInt) || (testTime.Day() % modulo == 0 && modulo > 1) {
+    _, isScheduled := scheduledDaysOfMonthsIntMap[testTime.Day()]
+    if isScheduled == true || (testTime.Day() % intervalModulo == 0 && intervalModulo > 1) {
       return true
     }
     return false
@@ -84,13 +87,14 @@ func ParseDayOfMonthIntoFilter(rawStr string) (func(testTime time.Time) (bool), 
 func ParseHourIntoFilter(rawStr string) (func(testTime time.Time) (bool), error) {
 
   // Run regex parsers against schedule string notation
-  scheduledHoursInt, modulo, err := parseScheduleStringToIntSlice(rawStr)
+  scheduledHoursIntMap, intervalModulo, err := parseScheduleStringToIntMap(rawStr)
   if err != nil {
     return nil, err
   }
   // Add the filter using the slice of ints
   filterFunc := func(testTime time.Time) (bool) {
-    if intInSlice(testTime.Hour(), scheduledHoursInt) || (testTime.Hour() % modulo == 0 && modulo > 1) {
+    _, isScheduled := scheduledHoursIntMap[testTime.Hour()]
+    if isScheduled == true || (testTime.Hour() % intervalModulo == 0 && intervalModulo > 1) {
       return true
     }
     return false
@@ -104,13 +108,14 @@ func ParseHourIntoFilter(rawStr string) (func(testTime time.Time) (bool), error)
 func ParseMinuteIntoFilter(rawStr string) (func(testTime time.Time) (bool), error) {
 
   // Run regex parsers against schedule string notation
-  scheduledMinutesInt, modulo, err := parseScheduleStringToIntSlice(rawStr)
+  scheduledMinutesIntMap, intervalModulo, err := parseScheduleStringToIntMap(rawStr)
   if err != nil {
     return nil, err
   }
   // Add the filter using the slice of ints
   filterFunc := func(testTime time.Time) (bool) {
-    if intInSlice(testTime.Minute(), scheduledMinutesInt) || (testTime.Minute() % modulo == 0 && modulo > 1) {
+    _, isScheduled := scheduledMinutesIntMap[testTime.Minute()]
+    if isScheduled == true || (testTime.Minute() % intervalModulo == 0 && intervalModulo > 1) {
       return true
     }
     return false
@@ -119,33 +124,33 @@ func ParseMinuteIntoFilter(rawStr string) (func(testTime time.Time) (bool), erro
   return filterFunc, err
 }
 
-// parseScheduleStringToIntSlice - Parse a schedule notation string into an integer array representing points
+// parseScheduleStringToIntMap - Parse a schedule notation string into an integer map representing points
 //  of time within that scope (such as 30 being the 30th minute in an hour) and an integer modulo (ex 5) which represents
 //  the shorthand schedule notation for an interval (ex '*/5')
-func parseScheduleStringToIntSlice(rawStr string) ([]int, int, error) {
+func parseScheduleStringToIntMap(rawStr string) (map[int]bool, int, error) {
 
   var elementStrNumSlice []string // Slice of stringified integers that need to be converted into ints
-  var elementIntSlice []int // Slice of integers after being Atoi-ed from elementStrNumSlice
+  elementIntMap := make(map[int]bool) // Slice of integers after being Atoi-ed from elementStrNumSlice
   var err error
-  modulo := 1 // Interval operand.  Default 1 so that it will always equal true if checked
+  intervalModulo := 1 // Interval operand.  Default 1 so that it will always equal true if checked
 
-  // Set the modulo if the shorthand interval notation is used
+  // Set the intervalModulo if the shorthand interval notation is used
   if proceed, _ := regexp.MatchString("^" + regexp.QuoteMeta("*/") + "[0-9]+$", rawStr); proceed == true {
     re := regexp.MustCompile("^" + regexp.QuoteMeta("*/") + "([0-9]+)$")
     matches := re.FindStringSubmatch(rawStr)
-    modulo, err = strconv.Atoi(matches[1])
+    intervalModulo, err = strconv.Atoi(matches[1])
 
     if err != nil {
-      return nil, modulo, err
+      return nil, intervalModulo, err
     }
     // Create a (single element) slice of a single implicit time scope
   } else if proceed, _ := regexp.MatchString("^[0-9]+$", rawStr); proceed == true {
 
     intValue, err := strconv.Atoi(rawStr)
     if err != nil {
-      return nil, modulo, err
+      return nil, intervalModulo, err
     }
-    elementIntSlice = append(elementIntSlice, intValue)
+    elementIntMap[intValue] = true
 
     // Create a slice of each time scope that is comma seperated
   } else if proceed, _ := regexp.MatchString("^[0-9]+,.*$", rawStr); proceed == true {
@@ -153,9 +158,9 @@ func parseScheduleStringToIntSlice(rawStr string) ([]int, int, error) {
     for _, strValue := range elementStrNumSlice {
       intValue, err := strconv.Atoi(strValue)
       if err != nil {
-        return nil, modulo, err
+        return nil, intervalModulo, err
       }
-      elementIntSlice = append(elementIntSlice, intValue)
+      elementIntMap[intValue] = true
     }
 
     // Create a slice of each time scope that is range implied
@@ -163,45 +168,25 @@ func parseScheduleStringToIntSlice(rawStr string) ([]int, int, error) {
     elementStrNumSlice = strings.Split(rawStr, "-")
     startDay, err := strconv.Atoi(elementStrNumSlice[0])
     if err != nil {
-      return nil, modulo, err
+      return nil, intervalModulo, err
     }
     endDay, err := strconv.Atoi(elementStrNumSlice[1])
     if err != nil {
-      return nil, modulo, err
+      return nil, intervalModulo, err
     }
     if (startDay < endDay) {
       for i := startDay; i <= endDay; i++ {
-        elementIntSlice = append(elementIntSlice, i)
+        elementIntMap[i] = true
       }
     } else {
-      return nil, modulo, errors.New("Element range implication is not smaller to larger.  ")
+      return nil, intervalModulo, errors.New("Element range implication is not smaller to larger.  ")
     }
     // Something is wrong with the string to parse, return error
   } else {
-    return nil, modulo, errors.New("Could not parse element string '" + rawStr + "'")
+    return nil, intervalModulo, errors.New("Could not parse element string '" + rawStr + "'")
   }
 
-  return elementIntSlice, modulo, err
-}
-
-// stringInSlice - Used by filters to determine if an element of time is scheduled
-func stringInSlice(a string, list []string) (bool) {
-  for _, b := range list {
-    if b == a {
-      return true
-    }
-  }
-  return false
-}
-
-// intInSlice - Used by filters to determine if an element of time is scheduled
-func intInSlice(a int, list []int) (bool) {
-  for _, b := range list {
-    if b == a {
-      return true
-    }
-  }
-  return false
+  return elementIntMap, intervalModulo, err
 }
 
 // intToDayOfWeek - Used to convert integer representations of a day of the week into the English standard name
