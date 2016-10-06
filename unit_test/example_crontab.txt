@@ -1,0 +1,14 @@
+###################
+# PRODUCTION CRON #
+###################
+
+
+# Clean Out /dev/shm #
+*/30 * * * * /usr/bin/find /dev/shm -type f -amin +600 -delete
+
+#Group 1
+0 1 * * * /sbin/ping -c 10 127.0.0.1
+0 3 * * * /sbin/ping -c 10 127.0.0.1
+
+###group 2
+*/5 * * * * /sbin/ping -c 10 127.0.0.1
