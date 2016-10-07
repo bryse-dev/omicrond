@@ -26,23 +26,6 @@ type TestConfig struct {
   ExpectedResult bool
 }
 
-func (h *TestingJobHandler) ParseTestJobConfig(confFile string) (error) {
-
-  fmt.Println("Parsing unit-test file: " + confFile)
-  _, err := toml.DecodeFile(confFile, &h)
-  if err != nil {
-    return err
-  }
-
-  for testCaseIndex, _ := range h.TestCase {
-    err := h.TestCase[testCaseIndex].Job.ParseScheduleIntoFilters()
-    if err != nil {
-      return err
-    }
-  }
-  return err
-}
-
 func TestJobParseAndFilterCreation(t *testing.T) {
 
   var handler = TestingJobHandler{}
@@ -70,4 +53,21 @@ func TestJobParseAndFilterCreation(t *testing.T) {
       })
     }
   }
+}
+
+func (h *TestingJobHandler) ParseTestJobConfig(confFile string) (error) {
+
+  fmt.Println("Parsing unit-test file: " + confFile)
+  _, err := toml.DecodeFile(confFile, &h)
+  if err != nil {
+    return err
+  }
+
+  for testCaseIndex, _ := range h.TestCase {
+    err := h.TestCase[testCaseIndex].Job.ParseScheduleIntoFilters()
+    if err != nil {
+      return err
+    }
+  }
+  return err
 }

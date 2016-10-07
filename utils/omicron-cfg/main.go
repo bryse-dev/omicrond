@@ -26,8 +26,10 @@ type JobConfigToPrint struct {
 
 // Configure command line arguments
 var logLevelPtr = flag.Int("v", 2, "Set the debug level: 1 = Panic, 2 = Fatal, 3 = Error, 4 = Warn, 5 = Info, 6 = Debug")
-var configFilePtr = flag.String("config", "", "Path to the daemon configuration file")
+var configFilePtr = flag.String("config", "", "Path to the legacy configuration file")
+var convertedConfigFilePtr = flag.String("outfile", "", "Path to the new configuration file")
 var configFile string
+var fileOut *os.File
 
 func init() {
 
@@ -36,6 +38,17 @@ func init() {
 
   // Set the path to the daemon config file
   configFile = *configFilePtr
+
+  if *convertedConfigFilePtr == "" {
+    // Set the default file to be stdout
+    fileOut = os.Stdout
+  } else {
+    var err error
+    fileOut, err = os.Create(*convertedConfigFilePtr)
+    if err != nil {
+      logrus.Fatal("Cannot create File: " + *convertedConfigFilePtr)
+    }
+  }
 
   // Set the log level of the program
   switch {
@@ -63,13 +76,24 @@ func main() {
     logrus.Fatal("File does not exists: " + configFile)
   }
 
+  // Read in the file and parse into a JobHandlerToPrint object
   jobHandler := readConfigFile(configFile)
 
-  if err := toml.NewEncoder(os.Stdout).Encode(jobHandler); err != nil {
-    logrus.Fatal("Error encoding TOML: %s", err)
-  }
+  // Write the object to a TOML file
+  writeConfigFile(jobHandler, fileOut)
 }
 
+// Write the TOML config to the passed in file
+func writeConfigFile(jobHandler JobHandlerToPrint, writer *os.File) {
+
+  if err := toml.NewEncoder(writer).Encode(jobHandler); err != nil {
+    logrus.Fatal("Error encoding TOML: %s", err)
+  }
+
+  return
+}
+
+// Read legacy config and parse out each Job
 func readConfigFile(configFile string) (JobHandlerToPrint) {
 
   var handler JobHandlerToPrint
@@ -85,7 +109,6 @@ func readConfigFile(configFile string) (JobHandlerToPrint) {
   scanner := bufio.NewScanner(file)
   title := "title"
   titleCounter := 1
-  //removeStartingWhitespace := regexp.MustCompile("^ *#? *")
 
   // Read in file line by line and build JobConfig objects
   for scanner.Scan() {
@@ -99,6 +122,7 @@ func readConfigFile(configFile string) (JobHandlerToPrint) {
       jobObj.Exec = strings.Join(lineElements[5:], " ")
 
       handler.Job = append(handler.Job, jobObj)
+      titleCounter++
     }
   }
 
