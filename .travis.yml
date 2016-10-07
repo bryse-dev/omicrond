@@ -1,2 +1,10 @@
 language: go
-script: go test -v ./...
+env:
+  - "PATH=/home/travis/gopath/bin:$PATH"
+before_install:
+ - go get golang.org/x/tools/cmd/cover
+ - go get github.com/mattn/goveralls
+ - go get ./...
+script:
+  - go test -v -covermode=count -coverprofile=coverage.out ./...
+  - goveralls -coverprofile=coverage.out -service travis-ci -repotoken LcAIwFSdho9PkhHH3zG0RQ4OmeJ3TGSU8
