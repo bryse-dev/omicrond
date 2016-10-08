@@ -9,20 +9,8 @@ import (
   "strconv"
   "github.com/Sirupsen/logrus"
   "github.com/BurntSushi/toml"
+  "github.com/brysearl/omicrond/job"
 )
-
-// JobHandlerToPrint - Keep all the jobs together in an iterable slice
-type JobHandlerToPrint struct {
-  Job []JobConfigToPrint
-}
-
-// JobConfigToPrint - Object representing a single scheduled job
-type JobConfigToPrint struct {
-  Title     string // The name of the job.  Used in logging
-  Exec      string // String to be run on the system
-  GroupName string // Used to relate jobs and in logging *unused*
-  Schedule  string // Traditional encoded string to represent the schedule
-}
 
 // Configure command line arguments
 var logLevelPtr = flag.Int("v", 2, "Set the debug level: 1 = Panic, 2 = Fatal, 3 = Error, 4 = Warn, 5 = Info, 6 = Debug")
@@ -76,7 +64,7 @@ func main() {
     logrus.Fatal("File does not exists: " + configFile)
   }
 
-  // Read in the file and parse into a JobHandlerToPrint object
+  // Read in the file and parse into a job.JobHandler object
   jobHandler := readConfigFile(configFile)
 
   // Write the object to a TOML file
@@ -84,7 +72,7 @@ func main() {
 }
 
 // Write the TOML config to the passed in file
-func writeConfigFile(jobHandler JobHandlerToPrint, writer *os.File) {
+func writeConfigFile(jobHandler job.JobHandler, writer *os.File) {
 
   if err := toml.NewEncoder(writer).Encode(jobHandler); err != nil {
     logrus.Fatal("Error encoding TOML: %s", err)
@@ -94,9 +82,9 @@ func writeConfigFile(jobHandler JobHandlerToPrint, writer *os.File) {
 }
 
 // Read legacy config and parse out each Job
-func readConfigFile(configFile string) (JobHandlerToPrint) {
+func readConfigFile(configFile string) (job.JobHandler) {
 
-  var handler JobHandlerToPrint
+  var handler job.JobHandler
 
   // Open the file for reading and defer closing
   file, err := os.Open(configFile)
@@ -115,11 +103,11 @@ func readConfigFile(configFile string) (JobHandlerToPrint) {
     line := scanner.Text()
     if isJob, _ := regexp.MatchString("^[" + regexp.QuoteMeta("*") + "0-9]", line); isJob == true {
       // Found a job, build JobConfig
-      var jobObj JobConfigToPrint
+      var jobObj job.JobConfig
       jobObj.Title = title + strconv.Itoa(titleCounter)
       lineElements := strings.Split(line, " ")
       jobObj.Schedule = strings.Join(lineElements[:5], " ")
-      jobObj.Exec = strings.Join(lineElements[5:], " ")
+      jobObj.Command = strings.Join(lineElements[5:], " ")
 
       handler.Job = append(handler.Job, jobObj)
       titleCounter++

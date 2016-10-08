@@ -25,6 +25,8 @@ const (
   SATURDAY = "Saturday"
 )
 
+var RunningSchedule *JobHandler
+
 // JobHandler - Keep all the jobs together in an iterable slice
 type JobHandler struct {
   Job []JobConfig
@@ -33,7 +35,7 @@ type JobHandler struct {
 // JobConfig - Object representing a single scheduled job
 type JobConfig struct {
   Title     string // The name of the job.  Used in logging
-  Exec      CmdObj // String to be run on the system
+  Command   string // String to be run on the system
   GroupName string // Used to relate jobs and in logging *unused*
   Schedule  string // Traditional encoded string to represent the schedule
   Filters   []func(currentTime time.Time) (bool)
@@ -59,8 +61,12 @@ func (j *JobConfig) Run() {
 
   var err error
 
-  // Have to make a copy of the exec.Cmd object since it cannot be reused nor reset
-  command := j.Exec.Cmd
+
+  // Build the system level command from the configured command string
+  command := j.buildCommand()
+  if err != nil {
+    logrus.Error(err)
+  }
 
   // Create handles for both stdin and stdout
   stdOut, err := command.StdoutPipe()
@@ -107,6 +113,24 @@ func (j *JobConfig) Run() {
   return
 }
 
+// buildCommand - Convert string to executablte exec.Cmd type
+func (j *JobConfig) buildCommand() *exec.Cmd {
+
+  // Split on spaces
+  components := strings.Split(string(j.Command), " ")
+  if len(components) == 0 {
+    logrus.Error("Missing exec command in job configuration")
+  }
+
+  // Shift off the executable from the arguments
+  executable, components := components[0], components[1:]
+
+  // Create the exec.Cmd object and attach to JobConfig
+  cmdPtr := exec.Command(executable, components...)
+  return cmdPtr
+}
+
+
 ///////////////// SETUP FUNCTIONS //////////////////////
 
 // ParseJobConfig - Decode TOML config file and initiate ParseScheduleIntoFilters for each job
@@ -123,30 +147,9 @@ func (h *JobHandler) ParseJobConfig(confFile string) (error) {
       return err
     }
   }
-  return err
-}
 
-// CmdObj - Custom struct to enable a custom unmarshaler
-type CmdObj struct {
-  exec.Cmd
-}
+  RunningSchedule = h
 
-// UnmarshalText - Custom unmarshaler to build exec.Cmd type on JobConfig
-func (c *CmdObj) UnmarshalText(text []byte) error {
-  var err error
-
-  // Split on spaces
-  components := strings.Split(string(text), " ")
-  if len(components) == 0 {
-    return errors.New("Missing exec command in job configuration")
-  }
-
-  // Shift off the executable from the arguments
-  executable, components := components[0], components[1:]
-
-  // Create the exec.Cmd object and attach to JobConfig
-  cmdPtr := exec.Command(executable, components...)
-  c.Cmd = *cmdPtr
   return err
 }
 

@@ -6,6 +6,7 @@ import (
   "github.com/Sirupsen/logrus"
   "github.com/brysearl/omicrond/conf"
   "github.com/brysearl/omicrond/job"
+  "github.com/brysearl/omicrond/api"
 )
 //"github.com/davecgh/go-spew/spew"
 
@@ -52,6 +53,10 @@ func main() {
   if err != nil {
     logrus.Fatal(err)
   }
+
+  logrus.Info("Starting API")
+  go api.StartServer()
+  time.Sleep(time.Second)
 
   logrus.Info("Starting scheduling loop")
   startSchedulingLoop(schedule)
