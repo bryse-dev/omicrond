@@ -25,6 +25,8 @@ const (
   SATURDAY = "Saturday"
 )
 
+var RunningSchedule *JobHandler
+
 // JobHandler - Keep all the jobs together in an iterable slice
 type JobHandler struct {
   Job []JobConfig
@@ -33,79 +35,26 @@ type JobHandler struct {
 // JobConfig - Object representing a single scheduled job
 type JobConfig struct {
   Title     string // The name of the job.  Used in logging
-  Exec      CmdObj // String to be run on the system
+  Command   string // String to be run on the system
   GroupName string // Used to relate jobs and in logging *unused*
   Schedule  string // Traditional encoded string to represent the schedule
   Filters   []func(currentTime time.Time) (bool)
 }
 
-///////////////// SCHEDULING FUNCTIONS //////////////////////
-
-// CheckIfScheduled - Initiates each filter for a job and returns whether or not to run the job
-func (j *JobConfig) CheckIfScheduled(timeToCheck time.Time) (bool) {
-
-  for _, filter := range j.Filters {
-    result := filter(timeToCheck)
-    if result == false {
-      return false
-    }
-  }
-
-  return true
+// JobHandlerAPI - Keep all the jobs together in an iterable slice and is JSON friendly for API use
+type JobHandlerAPI struct {
+  Job []JobConfigAPI
 }
 
-// Run - Executes command
-func (j *JobConfig) Run() {
-
-  var err error
-
-  // Have to make a copy of the exec.Cmd object since it cannot be reused nor reset
-  command := j.Exec.Cmd
-
-  // Create handles for both stdin and stdout
-  stdOut, err := command.StdoutPipe()
-  if err != nil {
-    logrus.Error(err)
-    return
-  }
-  stdErr, err := command.StderrPipe()
-  if err != nil {
-    logrus.Error(err)
-    return
-  }
-
-  // Attach scanners to the IO handles
-  stdOutScanner := bufio.NewScanner(stdOut)
-  stdErrScanner := bufio.NewScanner(stdErr)
-
-  // Spawn goroutines to effectively tail the IO scanners
-  go func() {
-    for stdOutScanner.Scan() {
-      logrus.Debug("STDOUT | " + stdOutScanner.Text())
-    }
-  }()
-
-  go func() {
-    for stdErrScanner.Scan() {
-      logrus.Debug("STDERR | " + stdErrScanner.Text())
-    }
-  }()
-
-  // Start the command
-  logrus.Info("Running [" + j.Title + "]: " + strings.Join(command.Args, " "))
-  err = command.Start()
-  if err != nil {
-    logrus.Error(err)
-    return
-  }
-
-  // Wait for the command to complete
-  logrus.Debug("Waiting for command to complete")
-  command.Wait()
-  logrus.Debug("Command completed")
-
-  return
+// JobConfigAPI - Object representing a single scheduled job and is JSON friendly for API use
+type JobConfigAPI struct {
+  ID        int    // Index of the job in the JobHandler
+  Title     string // The name of the job.  Used in logging
+  Command   string // String to be run on the system
+  GroupName string // Used to relate jobs and in logging *unused*
+  Schedule  string // Traditional encoded string to represent the schedule
 }
+
 
 ///////////////// SETUP FUNCTIONS //////////////////////
 
@@ -123,30 +72,9 @@ func (h *JobHandler) ParseJobConfig(confFile string) (error) {
       return err
     }
   }
-  return err
-}
 
-// CmdObj - Custom struct to enable a custom unmarshaler
-type CmdObj struct {
-  exec.Cmd
-}
+  RunningSchedule = h
 
-// UnmarshalText - Custom unmarshaler to build exec.Cmd type on JobConfig
-func (c *CmdObj) UnmarshalText(text []byte) error {
-  var err error
-
-  // Split on spaces
-  components := strings.Split(string(text), " ")
-  if len(components) == 0 {
-    return errors.New("Missing exec command in job configuration")
-  }
-
-  // Shift off the executable from the arguments
-  executable, components := components[0], components[1:]
-
-  // Create the exec.Cmd object and attach to JobConfig
-  cmdPtr := exec.Command(executable, components...)
-  c.Cmd = *cmdPtr
   return err
 }
 
@@ -203,3 +131,107 @@ func (j *JobConfig) ParseScheduleIntoFilters() (error) {
   return err
 }
 
+///////////////// SCHEDULING FUNCTIONS //////////////////////
+
+// CheckIfScheduled - Initiates each filter for a job and returns whether or not to run the job
+func (j *JobConfig) CheckIfScheduled(timeToCheck time.Time) (bool) {
+
+  for _, filter := range j.Filters {
+    result := filter(timeToCheck)
+    if result == false {
+      return false
+    }
+  }
+
+  return true
+}
+
+// Run - Executes command
+func (j *JobConfig) Run() {
+
+  var err error
+
+
+  // Build the system level command from the configured command string
+  command := j.buildCommand()
+  if err != nil {
+    logrus.Error(err)
+  }
+
+  // Create handles for both stdin and stdout
+  stdOut, err := command.StdoutPipe()
+  if err != nil {
+    logrus.Error(err)
+    return
+  }
+  stdErr, err := command.StderrPipe()
+  if err != nil {
+    logrus.Error(err)
+    return
+  }
+
+  // Attach scanners to the IO handles
+  stdOutScanner := bufio.NewScanner(stdOut)
+  stdErrScanner := bufio.NewScanner(stdErr)
+
+  // Spawn goroutines to effectively tail the IO scanners
+  go func() {
+    for stdOutScanner.Scan() {
+      logrus.Debug("STDOUT | " + stdOutScanner.Text())
+    }
+  }()
+
+  go func() {
+    for stdErrScanner.Scan() {
+      logrus.Debug("STDERR | " + stdErrScanner.Text())
+    }
+  }()
+
+  // Start the command
+  logrus.Info("Running [" + j.Title + "]: " + strings.Join(command.Args, " "))
+  err = command.Start()
+  if err != nil {
+    logrus.Error(err)
+    return
+  }
+
+  // Wait for the command to complete
+  logrus.Debug("Waiting for command to complete")
+  command.Wait()
+  logrus.Debug("Command completed")
+
+  return
+}
+
+// buildCommand - Convert string to executablte exec.Cmd type
+func (j *JobConfig) buildCommand() *exec.Cmd {
+
+  // Split on spaces
+  components := strings.Split(string(j.Command), " ")
+  if len(components) == 0 {
+    logrus.Error("Missing exec command in job configuration")
+  }
+
+  // Shift off the executable from the arguments
+  executable, components := components[0], components[1:]
+
+  // Create the exec.Cmd object and attach to JobConfig
+  cmdPtr := exec.Command(executable, components...)
+  return cmdPtr
+}
+
+func (h *JobHandler) MakeAPIFormat() JobHandlerAPI {
+
+  var apiHandler JobHandlerAPI
+  for jobIndex, _ := range h.Job {
+
+    apiHandler.Job = append(apiHandler.Job, JobConfigAPI{
+      ID: jobIndex,
+      Title: h.Job[jobIndex].Title,
+      Command: h.Job[jobIndex].Command,
+      GroupName: h.Job[jobIndex].GroupName,
+      Schedule: h.Job[jobIndex].Schedule })
+  }
+
+  return apiHandler
+}
