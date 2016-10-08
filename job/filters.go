@@ -179,7 +179,7 @@ func parseScheduleStringToIntMap(rawStr string) (map[int]bool, int, error) {
         return nil, intervalModulo, err
       }
     } else {
-      return nil,intervalModulo, errors.New("Could not parse [" + elementStrNum + "] of " + rawStr)
+      return nil, intervalModulo, errors.New("Could not parse [" + elementStrNum + "] of " + rawStr)
     }
   }
 

@@ -6,6 +6,9 @@ type DaemonConfig struct {
   Port          int
   SocketPath    string
   JobConfigPath string
+  APIAddress    string
+  APIPort       int
+  APITimeout    int
 }
 
 var Attr = DaemonConfig{}
@@ -17,5 +20,8 @@ func init() {
   Attr.Port = 51515
   Attr.SocketPath = "omicrond.sock"
   Attr.JobConfigPath = "sample/samplejobConf.toml"
+  Attr.APIAddress = "127.0.0.1"
+  Attr.APIPort = 12221
+  Attr.APITimeout = 5
 
 }

@@ -15,6 +15,9 @@ func init() {
   // Configure command line arguments
   var logLevelPtr = flag.Int("v", conf.Attr.LogLevel, "Set the debug level: 1 = Panic, 2 = Fatal, 3 = Error, 4 = Warn, 5 = Info, 6 = Debug")
   var jobConfigPathPtr = flag.String("config", conf.Attr.JobConfigPath, "Path to the daemon configuration file")
+  var apiAddressPtr = flag.String("api_address", conf.Attr.APIAddress, "IP to run the API service")
+  var apiPortPtr = flag.Int("api_port", conf.Attr.APIPort, "Port to run the API service")
+  var apiTimeoutPtr = flag.Int("api_port", conf.Attr.APITimeout, "API service request timeout in seconds")
 
   // Retrieve command line arguments
   flag.Parse()
@@ -24,6 +27,15 @@ func init() {
 
   // Set the log level of the program
   conf.Attr.LogLevel = *logLevelPtr
+
+  // Set the address of the api service
+  conf.Attr.APIAddress = *apiAddressPtr
+
+  // Set the port of the api service
+  conf.Attr.APIPort = *apiPortPtr
+
+  // Set the port of the api service
+  conf.Attr.APITimeout = *apiTimeoutPtr
 
   switch {
   case conf.Attr.LogLevel == 1:
