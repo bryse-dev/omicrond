@@ -41,6 +41,96 @@ type JobConfig struct {
   Filters   []func(currentTime time.Time) (bool)
 }
 
+// JobHandlerAPI - Keep all the jobs together in an iterable slice and is JSON friendly for API use
+type JobHandlerAPI struct {
+  Job []JobConfigAPI
+}
+
+// JobConfigAPI - Object representing a single scheduled job and is JSON friendly for API use
+type JobConfigAPI struct {
+  ID        int    // Index of the job in the JobHandler
+  Title     string // The name of the job.  Used in logging
+  Command   string // String to be run on the system
+  GroupName string // Used to relate jobs and in logging *unused*
+  Schedule  string // Traditional encoded string to represent the schedule
+}
+
+
+///////////////// SETUP FUNCTIONS //////////////////////
+
+// ParseJobConfig - Decode TOML config file and initiate ParseScheduleIntoFilters for each job
+func (h *JobHandler) ParseJobConfig(confFile string) (error) {
+
+  _, err := toml.DecodeFile(confFile, &h)
+  if err != nil {
+    return err
+  }
+
+  for jobIndex, _ := range h.Job {
+    err = h.Job[jobIndex].ParseScheduleIntoFilters()
+    if err != nil {
+      return err
+    }
+  }
+
+  RunningSchedule = h
+
+  return err
+}
+
+// ParseScheduleIntoFilters - Translate schedule string into iterable functions
+func (j *JobConfig) ParseScheduleIntoFilters() (error) {
+
+  var err error
+  scheduleChunks := strings.Split(j.Schedule, " ")
+  if len(scheduleChunks) != 5 {
+    return errors.New("Not enough elements in schedule for " + j.Title + ": " + j.Schedule)
+  }
+
+  // Add filter to only run on certain days of the week
+  if scheduleChunks[DAYOFWEEK] != "*" {
+    filterFunc, err := ParseDayOfWeekIntoFilter(scheduleChunks[DAYOFWEEK])
+    if err != nil {
+      return err
+    }
+    j.Filters = append(j.Filters, filterFunc)
+  }
+  // Add filter to limit to only certain months
+  if scheduleChunks[MONTH] != "*" {
+    filterFunc, err := ParseMonthIntoFilter(scheduleChunks[MONTH])
+    if err != nil {
+      return err
+    }
+    j.Filters = append(j.Filters, filterFunc)
+  }
+  // Add filter to limit to only certain days
+  if scheduleChunks[DAY] != "*" {
+    filterFunc, err := ParseDayOfMonthIntoFilter(scheduleChunks[DAY])
+    if err != nil {
+      return err
+    }
+    j.Filters = append(j.Filters, filterFunc)
+  }
+  // Add filter to limit to only certain hours
+  if scheduleChunks[HOUR] != "*" {
+    filterFunc, err := ParseHourIntoFilter(scheduleChunks[HOUR])
+    if err != nil {
+      return err
+    }
+    j.Filters = append(j.Filters, filterFunc)
+  }
+  // Add filter to limit to only certain minutes
+  if scheduleChunks[MINUTE] != "*" {
+    filterFunc, err := ParseMinuteIntoFilter(scheduleChunks[MINUTE])
+    if err != nil {
+      return err
+    }
+    j.Filters = append(j.Filters, filterFunc)
+  }
+
+  return err
+}
+
 ///////////////// SCHEDULING FUNCTIONS //////////////////////
 
 // CheckIfScheduled - Initiates each filter for a job and returns whether or not to run the job
@@ -130,79 +220,18 @@ func (j *JobConfig) buildCommand() *exec.Cmd {
   return cmdPtr
 }
 
+func (h *JobHandler) MakeAPIFormat() JobHandlerAPI {
 
-///////////////// SETUP FUNCTIONS //////////////////////
-
-// ParseJobConfig - Decode TOML config file and initiate ParseScheduleIntoFilters for each job
-func (h *JobHandler) ParseJobConfig(confFile string) (error) {
-
-  _, err := toml.DecodeFile(confFile, &h)
-  if err != nil {
-    return err
-  }
-
+  var apiHandler JobHandlerAPI
   for jobIndex, _ := range h.Job {
-    err = h.Job[jobIndex].ParseScheduleIntoFilters()
-    if err != nil {
-      return err
-    }
+
+    apiHandler.Job = append(apiHandler.Job, JobConfigAPI{
+      ID: jobIndex,
+      Title: h.Job[jobIndex].Title,
+      Command: h.Job[jobIndex].Command,
+      GroupName: h.Job[jobIndex].GroupName,
+      Schedule: h.Job[jobIndex].Schedule })
   }
 
-  RunningSchedule = h
-
-  return err
+  return apiHandler
 }
-
-// ParseScheduleIntoFilters - Translate schedule string into iterable functions
-func (j *JobConfig) ParseScheduleIntoFilters() (error) {
-
-  var err error
-  scheduleChunks := strings.Split(j.Schedule, " ")
-  if len(scheduleChunks) != 5 {
-    return errors.New("Not enough elements in schedule for " + j.Title + ": " + j.Schedule)
-  }
-
-  // Add filter to only run on certain days of the week
-  if scheduleChunks[DAYOFWEEK] != "*" {
-    filterFunc, err := ParseDayOfWeekIntoFilter(scheduleChunks[DAYOFWEEK])
-    if err != nil {
-      return err
-    }
-    j.Filters = append(j.Filters, filterFunc)
-  }
-  // Add filter to limit to only certain months
-  if scheduleChunks[MONTH] != "*" {
-    filterFunc, err := ParseMonthIntoFilter(scheduleChunks[MONTH])
-    if err != nil {
-      return err
-    }
-    j.Filters = append(j.Filters, filterFunc)
-  }
-  // Add filter to limit to only certain days
-  if scheduleChunks[DAY] != "*" {
-    filterFunc, err := ParseDayOfMonthIntoFilter(scheduleChunks[DAY])
-    if err != nil {
-      return err
-    }
-    j.Filters = append(j.Filters, filterFunc)
-  }
-  // Add filter to limit to only certain hours
-  if scheduleChunks[HOUR] != "*" {
-    filterFunc, err := ParseHourIntoFilter(scheduleChunks[HOUR])
-    if err != nil {
-      return err
-    }
-    j.Filters = append(j.Filters, filterFunc)
-  }
-  // Add filter to limit to only certain minutes
-  if scheduleChunks[MINUTE] != "*" {
-    filterFunc, err := ParseMinuteIntoFilter(scheduleChunks[MINUTE])
-    if err != nil {
-      return err
-    }
-    j.Filters = append(j.Filters, filterFunc)
-  }
-
-  return err
-}
-

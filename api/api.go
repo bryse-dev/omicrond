@@ -41,5 +41,8 @@ func getJobList(w http.ResponseWriter,r *http.Request) {
   logrus.Info("API request for Omicrond job list")
   logrus.Info(spew.Sdump(job.RunningSchedule))
   encoder := json.NewEncoder(w)
-  encoder.Encode(*job.RunningSchedule)
+  err := encoder.Encode(job.RunningSchedule.MakeAPIFormat())
+  if err !=nil {
+    logrus.Error(err)
+  }
 }
