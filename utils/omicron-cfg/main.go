@@ -112,8 +112,12 @@ func readConfigFile(configFile string) (job.JobHandler) {
       var jobObj job.JobConfig
       jobObj.Label = title + strconv.Itoa(titleCounter)
       lineElements := strings.Split(line, " ")
-      jobObj.Schedule = strings.Join(lineElements[:5], " ")
-      jobObj.Command = strings.Join(lineElements[5:], " ")
+      if(len(lineElements) > 4){
+        jobObj.Schedule = strings.Join(lineElements[:5], " ")
+        jobObj.Command = strings.Join(lineElements[5:], " ")
+      }else{
+        logrus.Fatal("Incorrect configuration: [line]")
+      }
 
       handler.Job = append(handler.Job, jobObj)
       titleCounter++

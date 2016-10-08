@@ -9,7 +9,6 @@ import (
   "github.com/gorilla/mux"
   "github.com/brysearl/omicrond/job"
   "github.com/brysearl/omicrond/conf"
-  "github.com/davecgh/go-spew/spew"
 )
 
 // StartServer - Create a TCP server running on the address and port configured in conf.go or cli arg.
@@ -36,6 +35,7 @@ func buildRoutes(router *mux.Router) *mux.Router {
 
   router.HandleFunc("/.status", getStatus)
   router.HandleFunc("/job/list", getJobList)
+  router.HandleFunc("/job/{jobID:[0-9]+}", getJobByID)
   return router
 }
 
@@ -50,10 +50,29 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 func getJobList(w http.ResponseWriter, r *http.Request) {
 
   logrus.Info("API request for Omicrond job list")
-  logrus.Info(spew.Sdump(job.RunningSchedule))
   encoder := json.NewEncoder(w)
   err := encoder.Encode(job.RunningSchedule.MakeAPIFormat())
   if err != nil {
     logrus.Error(err)
   }
+
+  return
+}
+
+func getJobByID(w http.ResponseWriter, r *http.Request) {
+  vars := mux.Vars(r)
+  jobIDStr := vars["jobID"]
+  jobID, err := strconv.Atoi(jobIDStr)
+  if err != nil {
+    logrus.Error(err)
+  }
+
+  logrus.Info("API request for single Omicrond job configuration")
+  encoder := json.NewEncoder(w)
+  err = encoder.Encode(job.RunningSchedule.MakeAPIFormat().Job[jobID])
+  if err != nil {
+    logrus.Error(err)
+  }
+
+  return
 }
