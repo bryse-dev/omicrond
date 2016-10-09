@@ -33,9 +33,10 @@ func StartServer() {
 // buildRoutes - Configure API routes and their functions
 func buildRoutes(router *mux.Router) *mux.Router {
 
-  router.HandleFunc("/.status", getStatus)
-  router.HandleFunc("/job/list", getJobList)
-  router.HandleFunc("/job/{jobID:[0-9]+}", getJobByID)
+  router.HandleFunc("/.status", getStatus).Methods("GET")
+  router.HandleFunc("/get/job/list", getJobList).Methods("GET")
+  router.HandleFunc("/get/job/{jobID:[0-9]+}", getJobByID).Methods("GET")
+  router.HandleFunc("/post/edit/job/{jobID:[0-9]+}", modifyJobByID).Methods("POST")
   return router
 }
 
@@ -69,10 +70,20 @@ func getJobByID(w http.ResponseWriter, r *http.Request) {
 
   logrus.Info("API request for single Omicrond job configuration")
   encoder := json.NewEncoder(w)
-  err = encoder.Encode(job.RunningSchedule.MakeAPIFormat().Job[jobID])
+  runningSchedule := job.RunningSchedule.MakeAPIFormat()
+  if jobID >= 0 and jobID <= len(runningSchedule.Job){
+    err = encoder.Encode(runningSchedule.Job[jobID])
+  }
   if err != nil {
     logrus.Error(err)
   }
 
+  return
+}
+
+func modifyJobByID(w http.ResponseWriter, r *http.Request) {
+  vars := mux.Vars(r)
+  jobIDStr := vars["jobID"]
+  jobID, err := strconv.Atoi(jobIDStr)
   return
 }
