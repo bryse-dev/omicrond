@@ -17,7 +17,7 @@ func init() {
   var jobConfigPathPtr = flag.String("config", conf.Attr.JobConfigPath, "Path to the daemon configuration file")
   var apiAddressPtr = flag.String("api_address", conf.Attr.APIAddress, "IP to run the API service")
   var apiPortPtr = flag.Int("api_port", conf.Attr.APIPort, "Port to run the API service")
-  var apiTimeoutPtr = flag.Int("api_port", conf.Attr.APITimeout, "API service request timeout in seconds")
+  var apiTimeoutPtr = flag.Int("api_timeout", conf.Attr.APITimeout, "API service request timeout in seconds")
 
   // Retrieve command line arguments
   flag.Parse()
@@ -93,7 +93,7 @@ func startSchedulingLoop(schedule job.JobHandler) {
       //Check each configured job to see if it needs to be run in this minute
       logrus.Info("Running filters: " + currentTime.String())
       for jobIndex, _ := range schedule.Job {
-        logrus.Debug("Checking: " + schedule.Job[jobIndex].Title)
+        logrus.Debug("Checking: " + schedule.Job[jobIndex].Label)
         runJob := schedule.Job[jobIndex].CheckIfScheduled(currentTime)
 
         if runJob == true {
