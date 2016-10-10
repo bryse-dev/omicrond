@@ -34,7 +34,7 @@ type JobHandler struct {
 
 // JobConfig - Object representing a single scheduled job
 type JobConfig struct {
-  Title     string // The name of the job.  Used in logging
+  Label     string // The name of the job.  Used in logging
   Command   string // String to be run on the system
   GroupName string // Used to relate jobs and in logging *unused*
   Schedule  string // Traditional encoded string to represent the schedule
@@ -49,7 +49,7 @@ type JobHandlerAPI struct {
 // JobConfigAPI - Object representing a single scheduled job and is JSON friendly for API use
 type JobConfigAPI struct {
   ID        int    // Index of the job in the JobHandler
-  Title     string // The name of the job.  Used in logging
+  Label     string // The name of the job.  Used in logging
   Command   string // String to be run on the system
   GroupName string // Used to relate jobs and in logging *unused*
   Schedule  string // Traditional encoded string to represent the schedule
@@ -66,7 +66,13 @@ func (h *JobHandler) ParseJobConfig(confFile string) (error) {
     return err
   }
 
+  err = h.CheckConfig()
+  if err != nil {
+    logrus.Fatal(err)
+  }
+
   for jobIndex, _ := range h.Job {
+
     err = h.Job[jobIndex].ParseScheduleIntoFilters()
     if err != nil {
       return err
@@ -78,13 +84,35 @@ func (h *JobHandler) ParseJobConfig(confFile string) (error) {
   return err
 }
 
+// CheckConfig - Sanity checks on the JobHandler.  Fatal if config is improper.
+func (h *JobHandler) CheckConfig() error {
+
+  var err error
+
+  titleCheck := make(map[string]bool)
+  for jobIndex, _ := range h.Job {
+
+    // Config sanity checks.  Make sure that labels exist and are unique.
+    if h.Job[jobIndex].Label == "" {
+      return errors.New("Config error: Job with an missing/empty label")
+    }
+    _, exists := titleCheck[h.Job[jobIndex].Label]
+    if exists == true {
+      return errors.New("Config error: Jobs with duplicate labels.")
+    }
+    titleCheck[h.Job[jobIndex].Label] = true
+  }
+
+  return err
+}
+
 // ParseScheduleIntoFilters - Translate schedule string into iterable functions
 func (j *JobConfig) ParseScheduleIntoFilters() (error) {
 
   var err error
   scheduleChunks := strings.Split(j.Schedule, " ")
   if len(scheduleChunks) != 5 {
-    return errors.New("Not enough elements in schedule for " + j.Title + ": " + j.Schedule)
+    return errors.New("Not enough elements in schedule for " + j.Label + ": " + j.Schedule)
   }
 
   // Add filter to only run on certain days of the week
@@ -188,7 +216,7 @@ func (j *JobConfig) Run() {
   }()
 
   // Start the command
-  logrus.Info("Running [" + j.Title + "]: " + strings.Join(command.Args, " "))
+  logrus.Info("Running [" + j.Label + "]: " + strings.Join(command.Args, " "))
   err = command.Start()
   if err != nil {
     logrus.Error(err)
@@ -227,7 +255,7 @@ func (h *JobHandler) MakeAPIFormat() JobHandlerAPI {
 
     apiHandler.Job = append(apiHandler.Job, JobConfigAPI{
       ID: jobIndex,
-      Title: h.Job[jobIndex].Title,
+      Label: h.Job[jobIndex].Label,
       Command: h.Job[jobIndex].Command,
       GroupName: h.Job[jobIndex].GroupName,
       Schedule: h.Job[jobIndex].Schedule })

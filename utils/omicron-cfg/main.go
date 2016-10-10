@@ -67,6 +67,12 @@ func main() {
   // Read in the file and parse into a job.JobHandler object
   jobHandler := readConfigFile(configFile)
 
+  // Run sanity checks on the JobHandler
+  err := jobHandler.CheckConfig()
+  if err != nil {
+    logrus.Fatal(err)
+  }
+
   // Write the object to a TOML file
   writeConfigFile(jobHandler, fileOut)
 }
@@ -104,7 +110,7 @@ func readConfigFile(configFile string) (job.JobHandler) {
     if isJob, _ := regexp.MatchString("^[" + regexp.QuoteMeta("*") + "0-9]", line); isJob == true {
       // Found a job, build JobConfig
       var jobObj job.JobConfig
-      jobObj.Title = title + strconv.Itoa(titleCounter)
+      jobObj.Label = title + strconv.Itoa(titleCounter)
       lineElements := strings.Split(line, " ")
       jobObj.Schedule = strings.Join(lineElements[:5], " ")
       jobObj.Command = strings.Join(lineElements[5:], " ")
