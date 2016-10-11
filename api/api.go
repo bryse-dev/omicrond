@@ -42,48 +42,81 @@ func buildRoutes(router *mux.Router) *mux.Router {
 
 // getStatus - Send the status of the server.  Used as unit test, if you get a 404 your test failed.
 func getStatus(w http.ResponseWriter, r *http.Request) {
-  logrus.Info("API request for Omicrond status")
+  logrus.Debug("API request for Omicrond status")
+
   w.Write([]byte("Omicrond is running"))
   return
 }
 
 // getJobList - Send a JSON representation of the JobHandler object within job.go
 func getJobList(w http.ResponseWriter, r *http.Request) {
+  logrus.Debug("API request for Omicrond job list")
 
-  logrus.Info("API request for Omicrond job list")
+  // Return the running schedule in JSON format
   encoder := json.NewEncoder(w)
-  err := encoder.Encode(job.RunningSchedule.MakeAPIFormat())
+  apiRunningSchedule, err := job.RunningSchedule.MakeAPIFormat()
   if err != nil {
-    logrus.Error(err)
+    w.Write([]byte("Error: " + err.Error()))
+  }
+  err = encoder.Encode(apiRunningSchedule)
+  if err != nil {
+    w.Write([]byte("Error: " + err.Error()))
   }
 
   return
 }
 
 func getJobByID(w http.ResponseWriter, r *http.Request) {
+  logrus.Debug("API request for single Omicrond job configuration")
+
+  // Assign the JSON encoder
+  encoder := json.NewEncoder(w)
+
+  // Convert the route variables
   vars := mux.Vars(r)
   jobIDStr := vars["jobID"]
   jobID, err := strconv.Atoi(jobIDStr)
   if err != nil {
-    logrus.Error(err)
+    http.Error(w,"{ \"Error\":\"" + err.Error() + "\"}",http.StatusBadRequest)
+    return
   }
 
-  logrus.Info("API request for single Omicrond job configuration")
-  encoder := json.NewEncoder(w)
-  runningSchedule := job.RunningSchedule.MakeAPIFormat()
-  if jobID >= 0 and jobID <= len(runningSchedule.Job){
-    err = encoder.Encode(runningSchedule.Job[jobID])
-  }
+  // Retrieve the Job
+  requestedJob, err := job.RunningSchedule.GetJobByID(jobID)
   if err != nil {
-    logrus.Error(err)
+    http.Error(w,"{ \"Error\":\"" + err.Error() + "\"}",http.StatusBadRequest)
+    return
+  }
+
+  // Convert the job to API
+  apiRequestedJob, err := requestedJob.MakeAPIFormat(job.RunningSchedule)
+  if err != nil {
+    http.Error(w,"{ \"Error\":\"" + err.Error() + "\"}",http.StatusBadRequest)
+    return
+  }
+
+  // Return in JSON format
+  err = encoder.Encode(apiRequestedJob)
+  if err != nil {
+    http.Error(w,"{ \"Error\":\"" + err.Error() + "\"}",http.StatusBadRequest)
+    return
   }
 
   return
 }
 
 func modifyJobByID(w http.ResponseWriter, r *http.Request) {
-  vars := mux.Vars(r)
-  jobIDStr := vars["jobID"]
-  jobID, err := strconv.Atoi(jobIDStr)
-  return
+  logrus.Debug("API request to modify Omicrond job configuration")
+
+  // Convert the route variables
+  //vars := mux.Vars(r)
+  //jobIDStr := vars["jobID"]
+  //jobID, err := strconv.Atoi(jobIDStr)
+
+  // Retrieve the Job
+  //requestedJob, err := job.RunningSchedule.GetJobByID(jobID)
+  //if err != nil {
+  //  w.Write([]byte("Error: " + err))
+  //}
+
 }

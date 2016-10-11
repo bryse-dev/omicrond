@@ -3,6 +3,7 @@ package job
 import (
   "errors"
   "strings"
+  "strconv"
   "time"
   "os/exec"
   "bufio"
@@ -30,6 +31,7 @@ var RunningSchedule *JobHandler
 // JobHandler - Keep all the jobs together in an iterable slice
 type JobHandler struct {
   Job []JobConfig
+  LabelToIndex  map[string]int
 }
 
 // JobConfig - Object representing a single scheduled job
@@ -84,12 +86,13 @@ func (h *JobHandler) ParseJobConfig(confFile string) (error) {
   return err
 }
 
-// CheckConfig - Sanity checks on the JobHandler.  Fatal if config is improper.
+// CheckConfig - Sanity checks on the JobHandler and builds LabelToIndex.
+// MUST BE RUN EVERYTIME THE RUNNING CONFIG IS CHANGED!
 func (h *JobHandler) CheckConfig() error {
 
   var err error
 
-  titleCheck := make(map[string]bool)
+  titleCheck := make(map[string]int)
   for jobIndex, _ := range h.Job {
 
     // Config sanity checks.  Make sure that labels exist and are unique.
@@ -100,8 +103,9 @@ func (h *JobHandler) CheckConfig() error {
     if exists == true {
       return errors.New("Config error: Jobs with duplicate labels.")
     }
-    titleCheck[h.Job[jobIndex].Label] = true
+    titleCheck[h.Job[jobIndex].Label] = jobIndex
   }
+  h.LabelToIndex = titleCheck
 
   return err
 }
@@ -248,18 +252,66 @@ func (j *JobConfig) buildCommand() *exec.Cmd {
   return cmdPtr
 }
 
-func (h *JobHandler) MakeAPIFormat() JobHandlerAPI {
+///////////////// API FUNCTIONS //////////////////////
+
+// MakeAPIFormat - Remove internal data structures from JobHandler
+func (h *JobHandler) MakeAPIFormat() (JobHandlerAPI, error) {
 
   var apiHandler JobHandlerAPI
+  var err error
   for jobIndex, _ := range h.Job {
 
-    apiHandler.Job = append(apiHandler.Job, JobConfigAPI{
-      ID: jobIndex,
-      Label: h.Job[jobIndex].Label,
-      Command: h.Job[jobIndex].Command,
-      GroupName: h.Job[jobIndex].GroupName,
-      Schedule: h.Job[jobIndex].Schedule })
+    // Convert the config to API format
+    apiJobConfig, err := h.Job[jobIndex].MakeAPIFormat(h)
+    if err != nil {
+      return JobHandlerAPI{}, err
+    }
+
+    // Append the API job to the API schedule
+    apiHandler.Job = append(apiHandler.Job, apiJobConfig)
+    if err != nil {
+      return JobHandlerAPI{}, err
+    }
   }
 
-  return apiHandler
+  return apiHandler, err
+}
+
+// MakeAPIFormat - Remove internal data structures from JobHandler
+func (j *JobConfig) MakeAPIFormat(parentHandler *JobHandler) (JobConfigAPI, error) {
+
+  var err error
+  _, myID, err := parentHandler.GetJobByLabel(j.Label)
+  if err != nil {
+    return JobConfigAPI{}, errors.New("Cannot find job in the passed schedule")
+  }
+  apiJobConfig := JobConfigAPI{
+    ID: myID,
+    Label: j.Label,
+    Command: j.Command,
+    GroupName: j.GroupName,
+    Schedule: j.Schedule }
+
+  return apiJobConfig, err
+}
+
+// GetJobByTitle - Find a job using its title
+func (h *JobHandler) GetJobByLabel(title string) (JobConfig, int, error) {
+  var err error
+  index, exists := h.LabelToIndex[title]
+  if exists == true {
+    return h.Job[index], index, err
+  } else {
+    return JobConfig{}, -1, errors.New("Cannot find job with title: " + title)
+  }
+}
+
+// GetJobByID - Find a job using its ID
+func (h *JobHandler) GetJobByID(jobID int) (JobConfig, error) {
+  var err error
+  if jobID >= 0 && jobID <= len(h.Job){
+    return h.Job[jobID], err
+  } else {
+    return JobConfig{}, errors.New("Cannot find job with ID: " + strconv.Itoa(jobID))
+  }
 }
