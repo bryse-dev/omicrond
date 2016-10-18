@@ -10,11 +10,15 @@ import (
   "github.com/brysearl/omicrond/job"
   "github.com/brysearl/omicrond/conf"
 )
+//"github.com/davecgh/go-spew/spew"
+
+var updateScheduleChan chan job.JobHandler
 
 // StartServer - Create a TCP server running on the address and port configured in conf.go or cli arg.
 //  Should be run in a goroutine
-func StartServer() {
+func StartServer(commChannel chan job.JobHandler) {
 
+  updateScheduleChan = commChannel
   router := buildRoutes(mux.NewRouter())
 
   logrus.Info("Starting HTTP interface")
@@ -36,7 +40,7 @@ func buildRoutes(router *mux.Router) *mux.Router {
   router.HandleFunc("/.status", getStatus).Methods("GET")
   router.HandleFunc("/get/job/list", getJobList).Methods("GET")
   router.HandleFunc("/get/job/{jobID:[0-9]+}", getJobByID).Methods("GET")
-  router.HandleFunc("/post/edit/job/{jobID:[0-9]+}", modifyJobByID).Methods("POST")
+  router.HandleFunc("/edit/job/{jobID:[0-9]+}", modifyJobByID).Methods("POST")
   return router
 }
 
@@ -52,12 +56,17 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 func getJobList(w http.ResponseWriter, r *http.Request) {
   logrus.Debug("API request for Omicrond job list")
 
-  // Return the running schedule in JSON format
   encoder := json.NewEncoder(w)
-  apiRunningSchedule, err := job.RunningSchedule.MakeAPIFormat()
+
+  // Request the current running schedule from the main scheduling loop
+  updateScheduleChan <- job.JobHandler{}
+  currentSchedule := <-updateScheduleChan
+  apiRunningSchedule, err := currentSchedule.MakeAPIFormat()
   if err != nil {
     w.Write([]byte("Error: " + err.Error()))
   }
+
+  // Return the running schedule in JSON format
   err = encoder.Encode(apiRunningSchedule)
   if err != nil {
     w.Write([]byte("Error: " + err.Error()))
@@ -77,28 +86,32 @@ func getJobByID(w http.ResponseWriter, r *http.Request) {
   jobIDStr := vars["jobID"]
   jobID, err := strconv.Atoi(jobIDStr)
   if err != nil {
-    http.Error(w,"{ \"Error\":\"" + err.Error() + "\"}",http.StatusBadRequest)
+    http.Error(w, "{ \"Error\":\"" + err.Error() + "\"}", http.StatusBadRequest)
     return
   }
 
+  // Request the current running schedule from the main scheduling loop
+  updateScheduleChan <- job.JobHandler{}
+  currentSchedule := <-updateScheduleChan
+
   // Retrieve the Job
-  requestedJob, err := job.RunningSchedule.GetJobByID(jobID)
+  requestedJob, err := currentSchedule.GetJobByID(jobID)
   if err != nil {
-    http.Error(w,"{ \"Error\":\"" + err.Error() + "\"}",http.StatusBadRequest)
+    http.Error(w, "{ \"Error\":\"" + err.Error() + "\"}", http.StatusBadRequest)
     return
   }
 
   // Convert the job to API
-  apiRequestedJob, err := requestedJob.MakeAPIFormat(job.RunningSchedule)
+  apiRequestedJob, err := requestedJob.MakeAPIFormat(currentSchedule)
   if err != nil {
-    http.Error(w,"{ \"Error\":\"" + err.Error() + "\"}",http.StatusBadRequest)
+    http.Error(w, "{ \"Error\":\"" + err.Error() + "\"}", http.StatusBadRequest)
     return
   }
 
   // Return in JSON format
   err = encoder.Encode(apiRequestedJob)
   if err != nil {
-    http.Error(w,"{ \"Error\":\"" + err.Error() + "\"}",http.StatusBadRequest)
+    http.Error(w, "{ \"Error\":\"" + err.Error() + "\"}", http.StatusBadRequest)
     return
   }
 
@@ -109,14 +122,57 @@ func modifyJobByID(w http.ResponseWriter, r *http.Request) {
   logrus.Debug("API request to modify Omicrond job configuration")
 
   // Convert the route variables
-  //vars := mux.Vars(r)
-  //jobIDStr := vars["jobID"]
-  //jobID, err := strconv.Atoi(jobIDStr)
+  vars := mux.Vars(r)
+  jobIDStr := vars["jobID"]
+  jobID, err := strconv.Atoi(jobIDStr)
+
+  // Request the current running schedule from the main scheduling loop
+  updateScheduleChan <- job.JobHandler{}
+  currentSchedule := <-updateScheduleChan
 
   // Retrieve the Job
-  //requestedJob, err := job.RunningSchedule.GetJobByID(jobID)
-  //if err != nil {
-  //  w.Write([]byte("Error: " + err))
-  //}
+  requestedJob, err := currentSchedule.GetJobByID(jobID)
+  if err != nil {
+    http.Error(w, "{ \"Error\":\"" + err.Error() + "\"}", http.StatusBadRequest)
+    return
+  }
 
+  // Change the fields to the new settings
+  newLabel := r.FormValue("label")
+  if newLabel != "" {
+    requestedJob.Label = newLabel
+  }
+  newScheduleStr := r.FormValue("schedule")
+  if newScheduleStr != "" {
+    requestedJob.Schedule = newScheduleStr
+    err = requestedJob.ParseScheduleIntoFilters()
+    if err != nil {
+      http.Error(w, "{ \"Error\":\"" + err.Error() + "\"}", http.StatusBadRequest)
+      return
+    }
+  }
+  newCommand := r.FormValue("command")
+  if newCommand != "" {
+    requestedJob.Command = newCommand
+  }
+  newGroupName := r.FormValue("groupName")
+  if newGroupName != "" {
+    requestedJob.GroupName = newGroupName
+  }
+
+  // Put the job back into the schedule
+  newSchedule := currentSchedule
+  newSchedule.Job[jobID] = requestedJob
+
+  // Make sure the changes are okay
+  err = newSchedule.CheckConfig()
+  if err != nil {
+    http.Error(w, "{ \"Error\":\"" + err.Error() + "\"}", http.StatusBadRequest)
+    return
+  }
+
+  // Put the new schedule into rotation
+  updateScheduleChan <- newSchedule
+
+  return
 }

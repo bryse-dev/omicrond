@@ -10,6 +10,8 @@ import (
 )
 //"github.com/davecgh/go-spew/spew"
 
+var updateScheduleChan chan job.JobHandler
+
 func init() {
 
   // Configure command line arguments
@@ -53,6 +55,7 @@ func init() {
   default:
     logrus.SetLevel(logrus.InfoLevel)
   }
+
 }
 
 func main() {
@@ -60,14 +63,15 @@ func main() {
   logrus.Info("Starting")
 
   logrus.Info("Reading job configuration file: " + conf.Attr.JobConfigPath)
-  var schedule = job.JobHandler{}
+  var schedule job.JobHandler
   err := schedule.ParseJobConfig(conf.Attr.JobConfigPath)
   if err != nil {
     logrus.Fatal(err)
   }
 
   logrus.Info("Starting API")
-  go api.StartServer()
+  updateScheduleChan = make(chan job.JobHandler)
+  go api.StartServer(updateScheduleChan)
   time.Sleep(time.Second)
 
   logrus.Info("Starting scheduling loop")
@@ -100,10 +104,45 @@ func startSchedulingLoop(schedule job.JobHandler) {
           go schedule.Job[jobIndex].Run()
         }
       }
+
+      // Update the minute lock and take a break
+      lastCheckTime = currentTime
+      time.Sleep(time.Second)
+
+    } else {
+
+      // Determine the amount of free time available to listen to a channel
+      // Stops listening a second before the next minute so that it kicks of goroutines asap
+      timeout := time.Now().Truncate(time.Minute).Add(time.Minute).Sub(time.Now().Add(time.Second))
+      if timeout < (1 * time.Second) {
+        continue
+      }
+      logrus.Debug("Listening to channel for the next " + timeout.String() + " seconds")
+
+      select {
+      case incomingHandler := <-updateScheduleChan:
+
+      // Spawn thread so we can get back to listening
+        go func() {
+          // If a blank JobHandler is passed, return the running JobHandler
+          if (len(incomingHandler.Job) == 0) {
+            updateScheduleChan <- schedule
+
+          } else {
+            // If a non-blank JobHandler is passed, make it the running schedule
+            err := incomingHandler.CheckConfig()
+            if err != nil {
+              logrus.Error(err)
+            }
+
+            logrus.Debug("Schedule Refreshed")
+            schedule = incomingHandler
+          }
+        }()
+      case <-time.After(timeout):
+        logrus.Debug("No longer listing on channel")
+      }
     }
 
-    // Update the minute lock and take a break
-    lastCheckTime = currentTime
-    time.Sleep(time.Second)
   }
 }

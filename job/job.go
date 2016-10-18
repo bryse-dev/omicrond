@@ -26,12 +26,10 @@ const (
   SATURDAY = "Saturday"
 )
 
-var RunningSchedule *JobHandler
-
 // JobHandler - Keep all the jobs together in an iterable slice
 type JobHandler struct {
-  Job []JobConfig
-  LabelToIndex  map[string]int
+  Job          []JobConfig
+  LabelToIndex map[string]int
 }
 
 // JobConfig - Object representing a single scheduled job
@@ -81,8 +79,6 @@ func (h *JobHandler) ParseJobConfig(confFile string) (error) {
     }
   }
 
-  RunningSchedule = h
-
   return err
 }
 
@@ -116,7 +112,7 @@ func (j *JobConfig) ParseScheduleIntoFilters() (error) {
   var err error
   scheduleChunks := strings.Split(j.Schedule, " ")
   if len(scheduleChunks) != 5 {
-    return errors.New("Not enough elements in schedule for " + j.Label + ": " + j.Schedule)
+    return errors.New("Cannot parse schedule string " + j.Label + ": " + j.Schedule)
   }
 
   // Add filter to only run on certain days of the week
@@ -262,7 +258,7 @@ func (h *JobHandler) MakeAPIFormat() (JobHandlerAPI, error) {
   for jobIndex, _ := range h.Job {
 
     // Convert the config to API format
-    apiJobConfig, err := h.Job[jobIndex].MakeAPIFormat(h)
+    apiJobConfig, err := h.Job[jobIndex].MakeAPIFormat(*h)
     if err != nil {
       return JobHandlerAPI{}, err
     }
@@ -278,7 +274,7 @@ func (h *JobHandler) MakeAPIFormat() (JobHandlerAPI, error) {
 }
 
 // MakeAPIFormat - Remove internal data structures from JobHandler
-func (j *JobConfig) MakeAPIFormat(parentHandler *JobHandler) (JobConfigAPI, error) {
+func (j *JobConfig) MakeAPIFormat(parentHandler JobHandler) (JobConfigAPI, error) {
 
   var err error
   _, myID, err := parentHandler.GetJobByLabel(j.Label)
@@ -309,7 +305,7 @@ func (h *JobHandler) GetJobByLabel(title string) (JobConfig, int, error) {
 // GetJobByID - Find a job using its ID
 func (h *JobHandler) GetJobByID(jobID int) (JobConfig, error) {
   var err error
-  if jobID >= 0 && jobID <= len(h.Job){
+  if jobID >= 0 && jobID <= len(h.Job) {
     return h.Job[jobID], err
   } else {
     return JobConfig{}, errors.New("Cannot find job with ID: " + strconv.Itoa(jobID))
