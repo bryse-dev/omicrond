@@ -56,6 +56,11 @@ func init() {
     logrus.SetLevel(logrus.InfoLevel)
   }
 
+  // Output with absolute time
+  customFormatter := new(logrus.TextFormatter)
+  customFormatter.TimestampFormat = "2006-01-02 15:04:05"
+  logrus.SetFormatter(customFormatter)
+  customFormatter.FullTimestamp = true
 }
 
 func main() {
@@ -75,11 +80,11 @@ func main() {
   time.Sleep(time.Second)
 
   logrus.Info("Starting scheduling loop")
-  startSchedulingLoop(schedule)
+  startSchedulingLoop(schedule, conf.Attr.JobConfigPath)
 }
 
 // startSchedulingLoop - Endless loop that checks jobs every minute and executes them if scheduled
-func startSchedulingLoop(schedule job.JobHandler) {
+func startSchedulingLoop(schedule job.JobHandler, jobConfig string) {
 
   // Keep track of the last minute that was run.  This way we can sit quietly until the next minute comes.
   lastCheckTime := time.Now().Truncate(time.Minute)
@@ -119,30 +124,39 @@ func startSchedulingLoop(schedule job.JobHandler) {
       }
       logrus.Debug("Listening to channel for the next " + timeout.String() + " seconds")
 
-      select {
-      case incomingHandler := <-updateScheduleChan:
+      // Between scheduling, be open to schedule changes via API
+      stop := false
+      for stop == false {
+        select {
 
-      // Spawn thread so we can get back to listening
-        go func() {
-          // If a blank JobHandler is passed, return the running JobHandler
-          if (len(incomingHandler.Job) == 0) {
-            updateScheduleChan <- schedule
+        // Timeout a second before the next minute and break out of channel loop
+        case <-time.After(timeout):
+          logrus.Debug("No longer listing on channel")
+          stop = true
 
-          } else {
-            // If a non-blank JobHandler is passed, make it the running schedule
-            err := incomingHandler.CheckConfig()
-            if err != nil {
-              logrus.Error(err)
+        // Spawn thread on channel traffic and go back to listening
+        case incomingHandler := <-updateScheduleChan:
+
+        // Spawn thread so we can get back to listening
+          go func() {
+            // If a blank JobHandler is passed, return the running JobHandler
+            if (len(incomingHandler.Job) == 0) {
+              updateScheduleChan <- schedule
+
+            } else {
+              // If a non-blank JobHandler is passed, make it the running schedule
+              err := incomingHandler.CheckConfig()
+              if err != nil {
+                logrus.Error(err)
+              }
+
+              logrus.Debug("Schedule Refreshed")
+              incomingHandler.WriteJobConfig(jobConfig)
+              schedule = incomingHandler
             }
-
-            logrus.Debug("Schedule Refreshed")
-            schedule = incomingHandler
-          }
-        }()
-      case <-time.After(timeout):
-        logrus.Debug("No longer listing on channel")
+          }()
+        }
       }
     }
-
   }
 }

@@ -1,0 +1,18 @@
+[[job]]
+label = "Minutely"
+command = "ping -c 10 127.0.0.1"
+groupName = "Test"
+schedule = "* * * * *"  # every minute
+
+[[job]]
+label = "Quarter Hourly"
+command = "ping -c 10 127.0.0.1"
+groupName = "Test"
+schedule = "*/15 * * * *"  # every qhour
+
+[[job]]
+label = "Hourly"
+command = "ping -c 10 127.0.0.1"
+groupName = "Test"
+schedule = "0 * * * *"  # every hour
+

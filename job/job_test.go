@@ -64,7 +64,7 @@ func (h *TestingJobHandler) ParseTestJobConfig(confFile string) (error) {
   }
 
   for testCaseIndex, _ := range h.TestCase {
-    err := h.TestCase[testCaseIndex].Job.ParseScheduleIntoFilters()
+    err := h.TestCase[testCaseIndex].Job.ParseScheduleIntoFilters(false)
     if err != nil {
       return err
     }

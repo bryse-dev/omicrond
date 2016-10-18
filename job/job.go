@@ -5,6 +5,7 @@ import (
   "strings"
   "strconv"
   "time"
+  "os"
   "os/exec"
   "bufio"
   "github.com/BurntSushi/toml"
@@ -73,10 +74,32 @@ func (h *JobHandler) ParseJobConfig(confFile string) (error) {
 
   for jobIndex, _ := range h.Job {
 
-    err = h.Job[jobIndex].ParseScheduleIntoFilters()
+    err = h.Job[jobIndex].ParseScheduleIntoFilters(false)
     if err != nil {
       return err
     }
+  }
+
+  return err
+}
+
+// WriteJobConfig - update the written config file with any changes that have occured
+func (h *JobHandler) WriteJobConfig(confFile string) (error) {
+
+  var err error
+
+  // If the file already exists, back it up
+  backupFile := confFile + ".backup" + strconv.Itoa(int(time.Now().Unix()))
+  if _, err := os.Stat(confFile); err == nil {
+    err = os.Rename(confFile, backupFile)
+  }
+
+  writer, err := os.Create(confFile)
+  handler, err := h.MakeAPIFormat()
+  if err := toml.NewEncoder(writer).Encode(handler); err != nil {
+
+    logrus.Error("Error encoding TOML: %s", err)
+    err = os.Rename(backupFile, confFile)
   }
 
   return err
@@ -100,6 +123,11 @@ func (h *JobHandler) CheckConfig() error {
       return errors.New("Config error: Jobs with duplicate labels.")
     }
     titleCheck[h.Job[jobIndex].Label] = jobIndex
+
+    err = h.Job[jobIndex].ParseScheduleIntoFilters(true)
+    if err != nil {
+      return err
+    }
   }
   h.LabelToIndex = titleCheck
 
@@ -107,7 +135,7 @@ func (h *JobHandler) CheckConfig() error {
 }
 
 // ParseScheduleIntoFilters - Translate schedule string into iterable functions
-func (j *JobConfig) ParseScheduleIntoFilters() (error) {
+func (j *JobConfig) ParseScheduleIntoFilters(testing bool) (error) {
 
   var err error
   scheduleChunks := strings.Split(j.Schedule, " ")
@@ -121,7 +149,9 @@ func (j *JobConfig) ParseScheduleIntoFilters() (error) {
     if err != nil {
       return err
     }
-    j.Filters = append(j.Filters, filterFunc)
+    if testing == false {
+      j.Filters = append(j.Filters, filterFunc)
+    }
   }
   // Add filter to limit to only certain months
   if scheduleChunks[MONTH] != "*" {
@@ -129,7 +159,9 @@ func (j *JobConfig) ParseScheduleIntoFilters() (error) {
     if err != nil {
       return err
     }
-    j.Filters = append(j.Filters, filterFunc)
+    if testing == false {
+      j.Filters = append(j.Filters, filterFunc)
+    }
   }
   // Add filter to limit to only certain days
   if scheduleChunks[DAY] != "*" {
@@ -137,7 +169,9 @@ func (j *JobConfig) ParseScheduleIntoFilters() (error) {
     if err != nil {
       return err
     }
-    j.Filters = append(j.Filters, filterFunc)
+    if testing == false {
+      j.Filters = append(j.Filters, filterFunc)
+    }
   }
   // Add filter to limit to only certain hours
   if scheduleChunks[HOUR] != "*" {
@@ -145,7 +179,9 @@ func (j *JobConfig) ParseScheduleIntoFilters() (error) {
     if err != nil {
       return err
     }
-    j.Filters = append(j.Filters, filterFunc)
+    if testing == false {
+      j.Filters = append(j.Filters, filterFunc)
+    }
   }
   // Add filter to limit to only certain minutes
   if scheduleChunks[MINUTE] != "*" {
@@ -153,7 +189,9 @@ func (j *JobConfig) ParseScheduleIntoFilters() (error) {
     if err != nil {
       return err
     }
-    j.Filters = append(j.Filters, filterFunc)
+    if testing == false {
+      j.Filters = append(j.Filters, filterFunc)
+    }
   }
 
   return err

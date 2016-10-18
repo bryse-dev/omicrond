@@ -8,12 +8,14 @@ import (
   "time"
   . "github.com/smartystreets/goconvey/convey"
   "github.com/brysearl/omicrond/conf"
+  "github.com/brysearl/omicrond/job"
 )
 
 func TestStartServer(t *testing.T) {
 
   // Start the server
-  go StartServer()
+  var dummyChan chan job.JobHandler
+  go StartServer(dummyChan)
 
   // Give it a second to start
   time.Sleep(1 * time.Second)
@@ -28,3 +30,4 @@ func TestStartServer(t *testing.T) {
     So(string(body), ShouldEqual, "Omicrond is running")
   })
 }
+
