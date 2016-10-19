@@ -3,7 +3,9 @@ package job
 import (
   "errors"
   "strings"
+  "strconv"
   "time"
+  "os"
   "os/exec"
   "bufio"
   "github.com/BurntSushi/toml"
@@ -25,11 +27,10 @@ const (
   SATURDAY = "Saturday"
 )
 
-var RunningSchedule *JobHandler
-
 // JobHandler - Keep all the jobs together in an iterable slice
 type JobHandler struct {
-  Job []JobConfig
+  Job          []JobConfig
+  LabelToIndex map[string]int
 }
 
 // JobConfig - Object representing a single scheduled job
@@ -73,23 +74,44 @@ func (h *JobHandler) ParseJobConfig(confFile string) (error) {
 
   for jobIndex, _ := range h.Job {
 
-    err = h.Job[jobIndex].ParseScheduleIntoFilters()
+    err = h.Job[jobIndex].ParseScheduleIntoFilters(false)
     if err != nil {
       return err
     }
   }
 
-  RunningSchedule = h
+  return err
+}
+
+// WriteJobConfig - update the written config file with any changes that have occured
+func (h *JobHandler) WriteJobConfig(confFile string) (error) {
+
+  var err error
+
+  // If the file already exists, back it up
+  backupFile := confFile + ".backup" + strconv.Itoa(int(time.Now().Unix()))
+  if _, err := os.Stat(confFile); err == nil {
+    err = os.Rename(confFile, backupFile)
+  }
+
+  writer, err := os.Create(confFile)
+  handler, err := h.MakeAPIFormat()
+  if err := toml.NewEncoder(writer).Encode(handler); err != nil {
+
+    logrus.Error("Error encoding TOML: %s", err)
+    err = os.Rename(backupFile, confFile)
+  }
 
   return err
 }
 
-// CheckConfig - Sanity checks on the JobHandler.  Fatal if config is improper.
+// CheckConfig - Sanity checks on the JobHandler and builds LabelToIndex.
+// MUST BE RUN EVERYTIME THE RUNNING CONFIG IS CHANGED!
 func (h *JobHandler) CheckConfig() error {
 
   var err error
 
-  titleCheck := make(map[string]bool)
+  titleCheck := make(map[string]int)
   for jobIndex, _ := range h.Job {
 
     // Config sanity checks.  Make sure that labels exist and are unique.
@@ -100,19 +122,25 @@ func (h *JobHandler) CheckConfig() error {
     if exists == true {
       return errors.New("Config error: Jobs with duplicate labels.")
     }
-    titleCheck[h.Job[jobIndex].Label] = true
+    titleCheck[h.Job[jobIndex].Label] = jobIndex
+
+    err = h.Job[jobIndex].ParseScheduleIntoFilters(true)
+    if err != nil {
+      return err
+    }
   }
+  h.LabelToIndex = titleCheck
 
   return err
 }
 
 // ParseScheduleIntoFilters - Translate schedule string into iterable functions
-func (j *JobConfig) ParseScheduleIntoFilters() (error) {
+func (j *JobConfig) ParseScheduleIntoFilters(testing bool) (error) {
 
   var err error
   scheduleChunks := strings.Split(j.Schedule, " ")
   if len(scheduleChunks) != 5 {
-    return errors.New("Not enough elements in schedule for " + j.Label + ": " + j.Schedule)
+    return errors.New("Cannot parse schedule string " + j.Label + ": " + j.Schedule)
   }
 
   // Add filter to only run on certain days of the week
@@ -121,7 +149,9 @@ func (j *JobConfig) ParseScheduleIntoFilters() (error) {
     if err != nil {
       return err
     }
-    j.Filters = append(j.Filters, filterFunc)
+    if testing == false {
+      j.Filters = append(j.Filters, filterFunc)
+    }
   }
   // Add filter to limit to only certain months
   if scheduleChunks[MONTH] != "*" {
@@ -129,7 +159,9 @@ func (j *JobConfig) ParseScheduleIntoFilters() (error) {
     if err != nil {
       return err
     }
-    j.Filters = append(j.Filters, filterFunc)
+    if testing == false {
+      j.Filters = append(j.Filters, filterFunc)
+    }
   }
   // Add filter to limit to only certain days
   if scheduleChunks[DAY] != "*" {
@@ -137,7 +169,9 @@ func (j *JobConfig) ParseScheduleIntoFilters() (error) {
     if err != nil {
       return err
     }
-    j.Filters = append(j.Filters, filterFunc)
+    if testing == false {
+      j.Filters = append(j.Filters, filterFunc)
+    }
   }
   // Add filter to limit to only certain hours
   if scheduleChunks[HOUR] != "*" {
@@ -145,7 +179,9 @@ func (j *JobConfig) ParseScheduleIntoFilters() (error) {
     if err != nil {
       return err
     }
-    j.Filters = append(j.Filters, filterFunc)
+    if testing == false {
+      j.Filters = append(j.Filters, filterFunc)
+    }
   }
   // Add filter to limit to only certain minutes
   if scheduleChunks[MINUTE] != "*" {
@@ -153,7 +189,9 @@ func (j *JobConfig) ParseScheduleIntoFilters() (error) {
     if err != nil {
       return err
     }
-    j.Filters = append(j.Filters, filterFunc)
+    if testing == false {
+      j.Filters = append(j.Filters, filterFunc)
+    }
   }
 
   return err
@@ -248,18 +286,66 @@ func (j *JobConfig) buildCommand() *exec.Cmd {
   return cmdPtr
 }
 
-func (h *JobHandler) MakeAPIFormat() JobHandlerAPI {
+///////////////// API FUNCTIONS //////////////////////
+
+// MakeAPIFormat - Remove internal data structures from JobHandler
+func (h *JobHandler) MakeAPIFormat() (JobHandlerAPI, error) {
 
   var apiHandler JobHandlerAPI
+  var err error
   for jobIndex, _ := range h.Job {
 
-    apiHandler.Job = append(apiHandler.Job, JobConfigAPI{
-      ID: jobIndex,
-      Label: h.Job[jobIndex].Label,
-      Command: h.Job[jobIndex].Command,
-      GroupName: h.Job[jobIndex].GroupName,
-      Schedule: h.Job[jobIndex].Schedule })
+    // Convert the config to API format
+    apiJobConfig, err := h.Job[jobIndex].MakeAPIFormat(*h)
+    if err != nil {
+      return JobHandlerAPI{}, err
+    }
+
+    // Append the API job to the API schedule
+    apiHandler.Job = append(apiHandler.Job, apiJobConfig)
+    if err != nil {
+      return JobHandlerAPI{}, err
+    }
   }
 
-  return apiHandler
+  return apiHandler, err
+}
+
+// MakeAPIFormat - Remove internal data structures from JobHandler
+func (j *JobConfig) MakeAPIFormat(parentHandler JobHandler) (JobConfigAPI, error) {
+
+  var err error
+  _, myID, err := parentHandler.GetJobByLabel(j.Label)
+  if err != nil {
+    return JobConfigAPI{}, errors.New("Cannot find job in the passed schedule")
+  }
+  apiJobConfig := JobConfigAPI{
+    ID: myID,
+    Label: j.Label,
+    Command: j.Command,
+    GroupName: j.GroupName,
+    Schedule: j.Schedule }
+
+  return apiJobConfig, err
+}
+
+// GetJobByTitle - Find a job using its title
+func (h *JobHandler) GetJobByLabel(title string) (JobConfig, int, error) {
+  var err error
+  index, exists := h.LabelToIndex[title]
+  if exists == true {
+    return h.Job[index], index, err
+  } else {
+    return JobConfig{}, -1, errors.New("Cannot find job with title: " + title)
+  }
+}
+
+// GetJobByID - Find a job using its ID
+func (h *JobHandler) GetJobByID(jobID int) (JobConfig, error) {
+  var err error
+  if jobID >= 0 && jobID <= len(h.Job) {
+    return h.Job[jobID], err
+  } else {
+    return JobConfig{}, errors.New("Cannot find job with ID: " + strconv.Itoa(jobID))
+  }
 }

@@ -10,6 +10,10 @@ import (
 )
 //"github.com/davecgh/go-spew/spew"
 
+
+var runningChanComm chan api.ChanComm
+var isUnitTest bool
+
 func init() {
 
   // Configure command line arguments
@@ -53,6 +57,12 @@ func init() {
   default:
     logrus.SetLevel(logrus.InfoLevel)
   }
+
+  // Output with absolute time
+  customFormatter := new(logrus.TextFormatter)
+  customFormatter.TimestampFormat = "2006-01-02 15:04:05"
+  logrus.SetFormatter(customFormatter)
+  customFormatter.FullTimestamp = true
 }
 
 func main() {
@@ -60,22 +70,23 @@ func main() {
   logrus.Info("Starting")
 
   logrus.Info("Reading job configuration file: " + conf.Attr.JobConfigPath)
-  var schedule = job.JobHandler{}
+  var schedule job.JobHandler
   err := schedule.ParseJobConfig(conf.Attr.JobConfigPath)
   if err != nil {
     logrus.Fatal(err)
   }
 
   logrus.Info("Starting API")
-  go api.StartServer()
+  runningChanComm = make(chan api.ChanComm)
+  go api.StartServer(runningChanComm)
   time.Sleep(time.Second)
 
   logrus.Info("Starting scheduling loop")
-  startSchedulingLoop(schedule)
+  startSchedulingLoop(schedule, conf.Attr.JobConfigPath)
 }
 
 // startSchedulingLoop - Endless loop that checks jobs every minute and executes them if scheduled
-func startSchedulingLoop(schedule job.JobHandler) {
+func startSchedulingLoop(schedule job.JobHandler, jobConfig string) {
 
   // Keep track of the last minute that was run.  This way we can sit quietly until the next minute comes.
   lastCheckTime := time.Now().Truncate(time.Minute)
@@ -100,10 +111,59 @@ func startSchedulingLoop(schedule job.JobHandler) {
           go schedule.Job[jobIndex].Run()
         }
       }
-    }
 
-    // Update the minute lock and take a break
-    lastCheckTime = currentTime
-    time.Sleep(time.Second)
+      // Update the minute lock and take a break
+      lastCheckTime = currentTime
+      time.Sleep(time.Second)
+
+    } else {
+
+      // Determine the amount of free time available to listen to a channel
+      // Stops listening a second before the next minute so that it kicks of goroutines asap
+      timeout := time.Now().Truncate(time.Minute).Add(time.Minute).Sub(time.Now().Add(time.Second))
+      if timeout < (1 * time.Second) {
+        continue
+      }
+      logrus.Debug("Listening to channel for the next " + timeout.String() + " seconds")
+
+      // Between scheduling, be open to schedule changes via API
+      stop := false
+      for stop == false {
+        select {
+
+        // Timeout a second before the next minute and break out of channel loop
+        case <-time.After(timeout):
+          logrus.Debug("No longer listing on channel")
+          stop = true
+
+        // Spawn thread on channel traffic and go back to listening
+        case incomingChanComm := <-runningChanComm:
+
+        // Spawn thread so we can get back to listening
+          go func() {
+            // Send the running schedule to a requestor over the same channel
+            if incomingChanComm.Signal == "getRunningSchedule" {
+              runningChanComm <- api.ChanComm{Handler: schedule, Signal: "getRunningSchedule"}
+
+            } else if incomingChanComm.Signal == "replaceRunningSchedule" {
+              // Replace the running schedule with that of the requestor
+              err := incomingChanComm.Handler.CheckConfig()
+              if err != nil {
+                logrus.Error(err)
+              }
+
+              logrus.Debug("Schedule Refreshed")
+              if isUnitTest != true {
+                incomingChanComm.Handler.WriteJobConfig(jobConfig)
+              }
+              schedule = incomingChanComm.Handler
+            } else if incomingChanComm.Signal == "shutdown" {
+              logrus.Info("Recieved shutdown command.  Goodbye...")
+              return
+            }
+          }()
+        }
+      }
+    }
   }
 }

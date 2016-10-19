@@ -74,11 +74,11 @@ func main() {
   }
 
   // Write the object to a TOML file
-  writeConfigFile(jobHandler, fileOut)
+  writeNewConfigFile(jobHandler, fileOut)
 }
 
 // Write the TOML config to the passed in file
-func writeConfigFile(jobHandler job.JobHandler, writer *os.File) {
+func writeNewConfigFile(jobHandler job.JobHandler, writer *os.File) {
 
   if err := toml.NewEncoder(writer).Encode(jobHandler); err != nil {
     logrus.Fatal("Error encoding TOML: %s", err)
@@ -112,8 +112,12 @@ func readConfigFile(configFile string) (job.JobHandler) {
       var jobObj job.JobConfig
       jobObj.Label = title + strconv.Itoa(titleCounter)
       lineElements := strings.Split(line, " ")
-      jobObj.Schedule = strings.Join(lineElements[:5], " ")
-      jobObj.Command = strings.Join(lineElements[5:], " ")
+      if (len(lineElements) > 4) {
+        jobObj.Schedule = strings.Join(lineElements[:5], " ")
+        jobObj.Command = strings.Join(lineElements[5:], " ")
+      } else {
+        logrus.Fatal("Incorrect configuration: [line]")
+      }
 
       handler.Job = append(handler.Job, jobObj)
       titleCounter++

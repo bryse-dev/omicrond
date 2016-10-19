@@ -29,7 +29,7 @@ type TestConfig struct {
 func TestJobParseAndFilterCreation(t *testing.T) {
 
   var handler = TestingJobHandler{}
-  err := handler.ParseTestJobConfig("../unit_test/jobTestConfig.toml")
+  err := handler.ParseTestJobConfig("../unit_test/TestJobParseAndFilterCreation.toml")
   if err != nil {
     fmt.Println(err)
   }
@@ -64,7 +64,7 @@ func (h *TestingJobHandler) ParseTestJobConfig(confFile string) (error) {
   }
 
   for testCaseIndex, _ := range h.TestCase {
-    err := h.TestCase[testCaseIndex].Job.ParseScheduleIntoFilters()
+    err := h.TestCase[testCaseIndex].Job.ParseScheduleIntoFilters(false)
     if err != nil {
       return err
     }

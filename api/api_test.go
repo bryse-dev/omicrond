@@ -13,7 +13,8 @@ import (
 func TestStartServer(t *testing.T) {
 
   // Start the server
-  go StartServer()
+  var dummyChan chan ChanComm
+  go StartServer(dummyChan)
 
   // Give it a second to start
   time.Sleep(1 * time.Second)
@@ -28,3 +29,4 @@ func TestStartServer(t *testing.T) {
     So(string(body), ShouldEqual, "Omicrond is running")
   })
 }
+
