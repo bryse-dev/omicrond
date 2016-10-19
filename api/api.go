@@ -46,7 +46,7 @@ func buildRoutes(router *mux.Router) *mux.Router {
   router.HandleFunc("/get/job/list", getJobList).Methods("GET")
   router.HandleFunc("/get/job/{jobID:[0-9]+}", getJobByID).Methods("GET")
   router.HandleFunc("/edit/job/{jobID:[0-9]+}", modifyJobByID).Methods("POST")
-  router.HandleFunc("/create/job", newJob).Methods("POST")
+  router.HandleFunc("/create/job", createJob).Methods("POST")
   router.HandleFunc("/delete/job/{jobID:[0-9]+}", deleteJobByID).Methods("POST")
   return router
 }
@@ -148,11 +148,11 @@ func modifyJobByID(w http.ResponseWriter, r *http.Request) {
   }
 
   // Change the fields to the new settings
-  newLabel := r.FormValue("label")
+  newLabel := r.PostFormValue("label")
   if newLabel != "" {
     requestedJob.Label = newLabel
   }
-  newScheduleStr := r.FormValue("schedule")
+  newScheduleStr := r.PostFormValue("schedule")
   if newScheduleStr != "" {
     requestedJob.Schedule = newScheduleStr
     err = requestedJob.ParseScheduleIntoFilters(false)
@@ -161,11 +161,11 @@ func modifyJobByID(w http.ResponseWriter, r *http.Request) {
       return
     }
   }
-  newCommand := r.FormValue("command")
+  newCommand := r.PostFormValue("command")
   if newCommand != "" {
     requestedJob.Command = newCommand
   }
-  newGroupName := r.FormValue("groupName")
+  newGroupName := r.PostFormValue("groupName")
   if newGroupName != "" {
     requestedJob.GroupName = newGroupName
   }
@@ -187,7 +187,7 @@ func modifyJobByID(w http.ResponseWriter, r *http.Request) {
   return
 }
 
-func newJob(w http.ResponseWriter, r *http.Request) {
+func createJob(w http.ResponseWriter, r *http.Request) {
   logrus.Debug("API request to create Omicrond job configuration")
 
   // Request the current running schedule from the main scheduling loop
@@ -199,14 +199,14 @@ func newJob(w http.ResponseWriter, r *http.Request) {
   newJob := job.JobConfig{}
 
   // Change the fields to the new settings
-  newLabel := r.FormValue("label")
+  newLabel := r.PostFormValue("label")
   if newLabel != "" {
     newJob.Label = newLabel
   } else {
     http.Error(w, "{ \"Error\":\"" + "Requires parameter[label]" + "\"}", http.StatusBadRequest)
     return
   }
-  newScheduleStr := r.FormValue("schedule")
+  newScheduleStr := r.PostFormValue("schedule")
   if newScheduleStr != "" {
     newJob.Schedule = newScheduleStr
     err := newJob.ParseScheduleIntoFilters(false)
@@ -218,14 +218,14 @@ func newJob(w http.ResponseWriter, r *http.Request) {
     http.Error(w, "{ \"Error\":\"" + "Requires parameter[schedule]" + "\"}", http.StatusBadRequest)
     return
   }
-  newCommand := r.FormValue("command")
+  newCommand := r.PostFormValue("command")
   if newCommand != "" {
     newJob.Command = newCommand
   } else {
     http.Error(w, "{ \"Error\":\"" + "Requires parameter[command]" + "\"}", http.StatusBadRequest)
     return
   }
-  newGroupName := r.FormValue("groupName")
+  newGroupName := r.PostFormValue("groupName")
   if newGroupName != "" {
     newJob.GroupName = newGroupName
   } else {
