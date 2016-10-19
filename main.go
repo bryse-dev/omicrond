@@ -12,6 +12,7 @@ import (
 
 
 var runningChanComm chan api.ChanComm
+var isUnitTest bool
 
 func init() {
 
@@ -152,8 +153,13 @@ func startSchedulingLoop(schedule job.JobHandler, jobConfig string) {
               }
 
               logrus.Debug("Schedule Refreshed")
-              incomingChanComm.Handler.WriteJobConfig(jobConfig)
+              if isUnitTest != true {
+                incomingChanComm.Handler.WriteJobConfig(jobConfig)
+              }
               schedule = incomingChanComm.Handler
+            } else if incomingChanComm.Signal == "shutdown" {
+              logrus.Info("Recieved shutdown command.  Goodbye...")
+              return
             }
           }()
         }
