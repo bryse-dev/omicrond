@@ -12,13 +12,18 @@ import (
 )
 //"github.com/davecgh/go-spew/spew"
 
-var updateScheduleChan chan job.JobHandler
+type ChanComm struct {
+  Signal  string
+  Handler job.JobHandler
+}
+
+var runningChanComm chan ChanComm
 
 // StartServer - Create a TCP server running on the address and port configured in conf.go or cli arg.
 //  Should be run in a goroutine
-func StartServer(commChannel chan job.JobHandler) {
+func StartServer(commChannel chan ChanComm) {
 
-  updateScheduleChan = commChannel
+  runningChanComm = commChannel
   router := buildRoutes(mux.NewRouter())
 
   logrus.Info("Starting HTTP interface")
@@ -61,8 +66,9 @@ func getJobList(w http.ResponseWriter, r *http.Request) {
   encoder := json.NewEncoder(w)
 
   // Request the current running schedule from the main scheduling loop
-  updateScheduleChan <- job.JobHandler{}
-  currentSchedule := <-updateScheduleChan
+  runningChanComm <- ChanComm{Signal: "getRunningSchedule", Handler: job.JobHandler{} }
+  returnComm := <-runningChanComm
+  currentSchedule := returnComm.Handler
   apiRunningSchedule, err := currentSchedule.MakeAPIFormat()
   if err != nil {
     w.Write([]byte("Error: " + err.Error()))
@@ -93,8 +99,9 @@ func getJobByID(w http.ResponseWriter, r *http.Request) {
   }
 
   // Request the current running schedule from the main scheduling loop
-  updateScheduleChan <- job.JobHandler{}
-  currentSchedule := <-updateScheduleChan
+  runningChanComm <- ChanComm{Signal: "getRunningSchedule", Handler: job.JobHandler{} }
+  returnComm := <-runningChanComm
+  currentSchedule := returnComm.Handler
 
   // Retrieve the Job
   requestedJob, err := currentSchedule.GetJobByID(jobID)
@@ -129,8 +136,9 @@ func modifyJobByID(w http.ResponseWriter, r *http.Request) {
   jobID, err := strconv.Atoi(jobIDStr)
 
   // Request the current running schedule from the main scheduling loop
-  updateScheduleChan <- job.JobHandler{}
-  currentSchedule := <-updateScheduleChan
+  runningChanComm <- ChanComm{Signal: "getRunningSchedule", Handler: job.JobHandler{} }
+  returnComm := <-runningChanComm
+  currentSchedule := returnComm.Handler
 
   // Retrieve the Job
   requestedJob, err := currentSchedule.GetJobByID(jobID)
@@ -174,7 +182,7 @@ func modifyJobByID(w http.ResponseWriter, r *http.Request) {
   }
 
   // Put the new schedule into rotation
-  updateScheduleChan <- newSchedule
+  runningChanComm <- ChanComm{Signal: "replaceRunningSchedule", Handler: newSchedule}
 
   return
 }
@@ -183,8 +191,9 @@ func newJob(w http.ResponseWriter, r *http.Request) {
   logrus.Debug("API request to create Omicrond job configuration")
 
   // Request the current running schedule from the main scheduling loop
-  updateScheduleChan <- job.JobHandler{}
-  currentSchedule := <-updateScheduleChan
+  runningChanComm <- ChanComm{Signal: "getRunningSchedule", Handler: job.JobHandler{} }
+  returnComm := <-runningChanComm
+  currentSchedule := returnComm.Handler
 
   // Create the empty Job
   newJob := job.JobConfig{}
@@ -236,7 +245,7 @@ func newJob(w http.ResponseWriter, r *http.Request) {
   }
 
   // Put the new schedule into rotation
-  updateScheduleChan <- newSchedule
+  runningChanComm <- ChanComm{Signal: "replaceRunningSchedule", Handler: newSchedule}
 
   return
 }
@@ -250,8 +259,9 @@ func deleteJobByID(w http.ResponseWriter, r *http.Request) {
   jobID, err := strconv.Atoi(jobIDStr)
 
   // Request the current running schedule from the main scheduling loop
-  updateScheduleChan <- job.JobHandler{}
-  currentSchedule := <-updateScheduleChan
+  runningChanComm <- ChanComm{Signal: "getRunningSchedule", Handler: job.JobHandler{} }
+  returnComm := <-runningChanComm
+  currentSchedule := returnComm.Handler
 
   // Retrieve the Job
   _, err = currentSchedule.GetJobByID(jobID)
@@ -272,7 +282,7 @@ func deleteJobByID(w http.ResponseWriter, r *http.Request) {
   }
 
   // Put the new schedule into rotation
-  updateScheduleChan <- newSchedule
+  runningChanComm <- ChanComm{Signal: "replaceRunningSchedule", Handler: newSchedule}
 
   return
 }

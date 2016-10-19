@@ -10,7 +10,8 @@ import (
 )
 //"github.com/davecgh/go-spew/spew"
 
-var updateScheduleChan chan job.JobHandler
+
+var runningChanComm chan api.ChanComm
 
 func init() {
 
@@ -75,8 +76,8 @@ func main() {
   }
 
   logrus.Info("Starting API")
-  updateScheduleChan = make(chan job.JobHandler)
-  go api.StartServer(updateScheduleChan)
+  runningChanComm = make(chan api.ChanComm)
+  go api.StartServer(runningChanComm)
   time.Sleep(time.Second)
 
   logrus.Info("Starting scheduling loop")
@@ -135,24 +136,24 @@ func startSchedulingLoop(schedule job.JobHandler, jobConfig string) {
           stop = true
 
         // Spawn thread on channel traffic and go back to listening
-        case incomingHandler := <-updateScheduleChan:
+        case incomingChanComm := <-runningChanComm:
 
         // Spawn thread so we can get back to listening
           go func() {
-            // If a blank JobHandler is passed, return the running JobHandler
-            if (len(incomingHandler.Job) == 0) {
-              updateScheduleChan <- schedule
+            // Send the running schedule to a requestor over the same channel
+            if incomingChanComm.Signal == "getRunningSchedule" {
+              runningChanComm <- api.ChanComm{Handler: schedule, Signal: "getRunningSchedule"}
 
-            } else {
-              // If a non-blank JobHandler is passed, make it the running schedule
-              err := incomingHandler.CheckConfig()
+            } else if incomingChanComm.Signal == "replaceRunningSchedule" {
+              // Replace the running schedule with that of the requestor
+              err := incomingChanComm.Handler.CheckConfig()
               if err != nil {
                 logrus.Error(err)
               }
 
               logrus.Debug("Schedule Refreshed")
-              incomingHandler.WriteJobConfig(jobConfig)
-              schedule = incomingHandler
+              incomingChanComm.Handler.WriteJobConfig(jobConfig)
+              schedule = incomingChanComm.Handler
             }
           }()
         }

@@ -29,7 +29,7 @@ type TestConfig struct {
 func TestJobParseAndFilterCreation(t *testing.T) {
 
   var handler = TestingJobHandler{}
-  err := handler.ParseTestJobConfig("../unit_test/jobTestConfig.toml")
+  err := handler.ParseTestJobConfig("../unit_test/TestJobParseAndFilterCreation.toml")
   if err != nil {
     fmt.Println(err)
   }

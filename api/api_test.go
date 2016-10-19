@@ -8,13 +8,12 @@ import (
   "time"
   . "github.com/smartystreets/goconvey/convey"
   "github.com/brysearl/omicrond/conf"
-  "github.com/brysearl/omicrond/job"
 )
 
 func TestStartServer(t *testing.T) {
 
   // Start the server
-  var dummyChan chan job.JobHandler
+  var dummyChan chan ChanComm
   go StartServer(dummyChan)
 
   // Give it a second to start
