@@ -44,10 +44,10 @@ func buildRoutes(router *mux.Router) *mux.Router {
 
   router.HandleFunc("/.status", getStatus).Methods("GET")
   router.HandleFunc("/get/job/list", getJobList).Methods("GET")
-  router.HandleFunc("/get/job/{jobID:[0-9]+}", getJobByID).Methods("GET")
-  router.HandleFunc("/edit/job/{jobID:[0-9]+}", modifyJobByID).Methods("POST")
+  router.HandleFunc("/get/job/{jobLabel:[a-zA-Z0-9_]+}", getJobByLabel).Methods("GET")
+  router.HandleFunc("/edit/job/{jobLabel:[a-zA-Z0-9_]+}", modifyJobByLabel).Methods("POST")
   router.HandleFunc("/create/job", createJob).Methods("POST")
-  router.HandleFunc("/delete/job/{jobID:[0-9]+}", deleteJobByID).Methods("POST")
+  router.HandleFunc("/delete/job/{jobLabel:[a-zA-Z0-9_]+}", deleteJobByLabel).Methods("POST")
   return router
 }
 
@@ -83,7 +83,7 @@ func getJobList(w http.ResponseWriter, r *http.Request) {
   return
 }
 
-func getJobByID(w http.ResponseWriter, r *http.Request) {
+func getJobByLabel(w http.ResponseWriter, r *http.Request) {
   logrus.Debug("API request for single Omicrond job configuration")
 
   // Assign the JSON encoder
@@ -91,12 +91,7 @@ func getJobByID(w http.ResponseWriter, r *http.Request) {
 
   // Convert the route variables
   vars := mux.Vars(r)
-  jobIDStr := vars["jobID"]
-  jobID, err := strconv.Atoi(jobIDStr)
-  if err != nil {
-    http.Error(w, "{ \"Error\":\"" + err.Error() + "\"}", http.StatusBadRequest)
-    return
-  }
+  jobLabelStr := vars["jobLabel"]
 
   // Request the current running schedule from the main scheduling loop
   runningChanComm <- ChanComm{Signal: "getRunningSchedule", Handler: job.JobHandler{} }
@@ -104,7 +99,7 @@ func getJobByID(w http.ResponseWriter, r *http.Request) {
   currentSchedule := returnComm.Handler
 
   // Retrieve the Job
-  requestedJob, err := currentSchedule.GetJobByID(jobID)
+  requestedJob, _, err := currentSchedule.GetJobByLabel(jobLabelStr)
   if err != nil {
     http.Error(w, "{ \"Error\":\"" + err.Error() + "\"}", http.StatusBadRequest)
     return
@@ -127,13 +122,12 @@ func getJobByID(w http.ResponseWriter, r *http.Request) {
   return
 }
 
-func modifyJobByID(w http.ResponseWriter, r *http.Request) {
+func modifyJobByLabel(w http.ResponseWriter, r *http.Request) {
   logrus.Debug("API request to modify Omicrond job configuration")
 
   // Convert the route variables
   vars := mux.Vars(r)
-  jobIDStr := vars["jobID"]
-  jobID, err := strconv.Atoi(jobIDStr)
+  jobLabelStr := vars["jobLabel"]
 
   // Request the current running schedule from the main scheduling loop
   runningChanComm <- ChanComm{Signal: "getRunningSchedule", Handler: job.JobHandler{} }
@@ -141,7 +135,7 @@ func modifyJobByID(w http.ResponseWriter, r *http.Request) {
   currentSchedule := returnComm.Handler
 
   // Retrieve the Job
-  requestedJob, err := currentSchedule.GetJobByID(jobID)
+  requestedJob, jobIndex, err := currentSchedule.GetJobByLabel(jobLabelStr)
   if err != nil {
     http.Error(w, "{ \"Error\":\"" + err.Error() + "\"}", http.StatusBadRequest)
     return
@@ -172,7 +166,11 @@ func modifyJobByID(w http.ResponseWriter, r *http.Request) {
 
   // Put the job back into the schedule
   newSchedule := currentSchedule
-  newSchedule.Job[jobID] = requestedJob
+  if err != nil {
+    http.Error(w, "{ \"Error\":\"" + err.Error() + "\"}", http.StatusBadRequest)
+    return
+  }
+  newSchedule.Job[jobIndex] = requestedJob
 
   // Make sure the changes are okay
   err = newSchedule.CheckConfig()
@@ -250,13 +248,12 @@ func createJob(w http.ResponseWriter, r *http.Request) {
   return
 }
 
-func deleteJobByID(w http.ResponseWriter, r *http.Request) {
+func deleteJobByLabel(w http.ResponseWriter, r *http.Request) {
   logrus.Debug("API request to delete Omicrond job configuration")
 
   // Convert the route variables
   vars := mux.Vars(r)
-  jobIDStr := vars["jobID"]
-  jobID, err := strconv.Atoi(jobIDStr)
+  jobLabelStr := vars["jobLabel"]
 
   // Request the current running schedule from the main scheduling loop
   runningChanComm <- ChanComm{Signal: "getRunningSchedule", Handler: job.JobHandler{} }
@@ -264,7 +261,7 @@ func deleteJobByID(w http.ResponseWriter, r *http.Request) {
   currentSchedule := returnComm.Handler
 
   // Retrieve the Job
-  _, err = currentSchedule.GetJobByID(jobID)
+  _, jobIndex, err := currentSchedule.GetJobByLabel(jobLabelStr)
   if err != nil {
     http.Error(w, "{ \"Error\":\"" + err.Error() + "\"}", http.StatusBadRequest)
     return
@@ -272,7 +269,7 @@ func deleteJobByID(w http.ResponseWriter, r *http.Request) {
 
   // Put the job back into the schedule
   newSchedule := currentSchedule
-  newSchedule.Job = append(newSchedule.Job[:jobID], newSchedule.Job[jobID + 1:]...)
+  newSchedule.Job = append(newSchedule.Job[:jobIndex], newSchedule.Job[jobIndex + 1:]...)
 
   // Make sure the changes are okay
   err = newSchedule.CheckConfig()

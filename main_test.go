@@ -33,38 +33,52 @@ func TestApiRoutes(t *testing.T) {
   // Give it a few seconds to start
   time.Sleep(5 * time.Second)
 
-  // getJobList Route test
+  // getJobList Route test success
   logrus.Info("Testing getJobList")
   resp, err := http.Get("http://" + conf.Attr.APIAddress + ":" + strconv.Itoa(conf.Attr.APIPort) + "/get/job/list")
   Convey("Should be able to build a Get request using daemon conf", t, func() {
     So(err, ShouldEqual, nil)
   })
-  runApiTest(t,resp)
+  runApiTest(t,resp,true)
   resp.Body.Close()
 
-  // getJobByID Route test
-  logrus.Info("Testing getJobByID")
-  resp, err = http.Get("http://" + conf.Attr.APIAddress + ":" + strconv.Itoa(conf.Attr.APIPort) + "/get/job/0")
+  // getJobByLabel Route test success
+  logrus.Info("Testing getJobByLabel")
+  resp, err = http.Get("http://" + conf.Attr.APIAddress + ":" + strconv.Itoa(conf.Attr.APIPort) + "/get/job/Quarter_Hourly")
   Convey("Should be able to build a Get request using daemon conf", t, func() {
     So(err, ShouldEqual, nil)
   })
-  runApiTest(t,resp)
+  runApiTest(t,resp,true)
   resp.Body.Close()
 
 
-  // modifyJobByID Route test
-  logrus.Info("Testing modifyJobByID")
-  resp, err = http.PostForm("http://" + conf.Attr.APIAddress + ":" + strconv.Itoa(conf.Attr.APIPort) + "/edit/job/0",
+  // modifyJobByLabel Route test success
+  logrus.Info("Testing modifyJobByLabel")
+  resp, err = http.PostForm("http://" + conf.Attr.APIAddress + ":" + strconv.Itoa(conf.Attr.APIPort) + "/edit/job/Minutely",
     url.Values{
       "label": {"Every Other Minute"},
       "schedule": {"*/2 * * * *"}})
   Convey("Should be able to build a Get request using daemon conf", t, func() {
     So(err, ShouldEqual, nil)
   })
-  runApiTest(t,resp)
+  runApiTest(t,resp,true)
   resp.Body.Close()
 
-  // createJob Route test
+  // createJob Route test failure
+  logrus.Info("Testing createJob with underscores")
+  resp, err = http.PostForm("http://" + conf.Attr.APIAddress + ":" + strconv.Itoa(conf.Attr.APIPort) + "/create/job",
+    url.Values{
+      "label": {"current_dir_every_minute"},
+      "schedule": {"* * * * *"},
+      "groupName": {"test"},
+      "command": {"/bin/pwd"}})
+  Convey("Should be able to build a Get request using daemon conf", t, func() {
+    So(err, ShouldEqual, nil)
+  })
+
+  // createJob Route test success
+  runApiTest(t,resp,false)
+  resp.Body.Close()
   logrus.Info("Testing createJob")
   resp, err = http.PostForm("http://" + conf.Attr.APIAddress + ":" + strconv.Itoa(conf.Attr.APIPort) + "/create/job",
     url.Values{
@@ -75,12 +89,12 @@ func TestApiRoutes(t *testing.T) {
   Convey("Should be able to build a Get request using daemon conf", t, func() {
     So(err, ShouldEqual, nil)
   })
-  runApiTest(t,resp)
+  runApiTest(t,resp,true)
   resp.Body.Close()
 
-  // deleteJobByID Route test
-  logrus.Info("Testing deleteJobByID")
-  resp, err = http.PostForm("http://" + conf.Attr.APIAddress + ":" + strconv.Itoa(conf.Attr.APIPort) + "/delete/job/1",
+  // deleteJobByLabel Route test success
+  logrus.Info("Testing deleteJobByLabel")
+  resp, err = http.PostForm("http://" + conf.Attr.APIAddress + ":" + strconv.Itoa(conf.Attr.APIPort) + "/delete/job/Quarter_Hourly",
     url.Values{
       "label": {"current dir every minute"},
       "schedule": {"* * * * *"},
@@ -89,14 +103,14 @@ func TestApiRoutes(t *testing.T) {
   Convey("Should be able to build a Get request using daemon conf", t, func() {
     So(err, ShouldEqual, nil)
   })
-  runApiTest(t,resp)
+  runApiTest(t,resp,true)
   resp.Body.Close()
 
   // Turn off the daemon
   runningChanComm <- api.ChanComm{Signal: "shutdown", Handler: job.JobHandler{} }
 }
 
-func runApiTest (t *testing.T, resp *http.Response) {
+func runApiTest (t *testing.T, resp *http.Response, testingNoErr bool) {
 
   // Struct to test responses
   type jsonResponse struct {
@@ -111,7 +125,12 @@ func runApiTest (t *testing.T, resp *http.Response) {
   dec := json.NewDecoder(strings.NewReader(string(body)))
   var json jsonResponse
   dec.Decode(&json)
+
   Convey("API call should not return an error", t, func() {
-    So(json.Error, ShouldEqual, "")
+    if testingNoErr == true {
+      So(json.Error, ShouldEqual, "")
+    }else{
+      So(json.Error, ShouldNotEqual, "")
+    }
   })
 }

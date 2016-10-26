@@ -118,6 +118,9 @@ func (h *JobHandler) CheckConfig() error {
     if h.Job[jobIndex].Label == "" {
       return errors.New("Config error: Job with an missing/empty label")
     }
+    if strings.Contains(h.Job[jobIndex].Label, "_") {
+      return errors.New("Config error: Job with reserved character '_' in label")
+    }
     _, exists := titleCheck[h.Job[jobIndex].Label]
     if exists == true {
       return errors.New("Config error: Jobs with duplicate labels.")
@@ -336,7 +339,13 @@ func (h *JobHandler) GetJobByLabel(title string) (JobConfig, int, error) {
   if exists == true {
     return h.Job[index], index, err
   } else {
-    return JobConfig{}, -1, errors.New("Cannot find job with title: " + title)
+    spacesTitle := strings.Replace(title,"_"," ",-1)
+    index, exists := h.LabelToIndex[spacesTitle]
+    if exists == true {
+      return h.Job[index], index, err
+    } else {
+      return JobConfig{}, -1, errors.New("Cannot find job with title: " + title)
+    }
   }
 }
 
