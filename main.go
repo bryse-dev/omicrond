@@ -70,7 +70,7 @@ func main() {
   logrus.Info("Starting")
 
   logrus.Info("Reading job configuration file: " + conf.Attr.JobConfigPath)
-  var schedule job.JobHandler
+  var schedule job.JobSchedule
   err := schedule.ParseJobConfig(conf.Attr.JobConfigPath)
   if err != nil {
     logrus.Fatal(err)
@@ -86,7 +86,7 @@ func main() {
 }
 
 // startSchedulingLoop - Endless loop that checks jobs every minute and executes them if scheduled
-func startSchedulingLoop(schedule job.JobHandler, jobConfig string) {
+func startSchedulingLoop(schedule job.JobSchedule, jobConfig string) {
 
   // Keep track of the last minute that was run.  This way we can sit quietly until the next minute comes.
   lastCheckTime := time.Now().Truncate(time.Minute)

@@ -27,40 +27,42 @@ const (
   SATURDAY = "Saturday"
 )
 
-// JobHandler - Keep all the jobs together in an iterable slice
-type JobHandler struct {
+// JobSchedule - Keep all the jobs together in an iterable slice
+type JobSchedule struct {
   Job          []JobConfig
   LabelToIndex map[string]int
 }
 
 // JobConfig - Object representing a single scheduled job
 type JobConfig struct {
-  Label     string // The name of the job.  Used in logging
-  Command   string // String to be run on the system
-  GroupName string // Used to relate jobs and in logging *unused*
-  Schedule  string // Traditional encoded string to represent the schedule
-  Filters   []func(currentTime time.Time) (bool)
+  Label      string            // The name of the job.  Used in logging
+  Command    string            // String to be run on the system
+  GroupName  string            // Used to relate jobs and in logging *unused*
+  Schedule   string            // Traditional encoded string to represent the schedule
+  Locking    bool              // Self-locking daemon that won't step on its own toes
+  Filters    []func(currentTime time.Time) (bool)
 }
 
-// JobHandlerAPI - Keep all the jobs together in an iterable slice and is JSON friendly for API use
-type JobHandlerAPI struct {
+// JobScheduleAPI - Keep all the jobs together in an iterable slice and is JSON friendly for API use
+type JobScheduleAPI struct {
   Job []JobConfigAPI
 }
 
 // JobConfigAPI - Object representing a single scheduled job and is JSON friendly for API use
 type JobConfigAPI struct {
-  ID        int    // Index of the job in the JobHandler
-  Label     string // The name of the job.  Used in logging
-  Command   string // String to be run on the system
-  GroupName string // Used to relate jobs and in logging *unused*
-  Schedule  string // Traditional encoded string to represent the schedule
+  ID         int               // Index of the job in the JobSchedule
+  Label      string            // The name of the job.  Used in logging
+  Command    string            // String to be run on the system
+  GroupName  string            // Used to relate jobs and in logging *unused*
+  Locking    bool              // Self-locking daemon that won't step on its own toes
+  Schedule   string            // Traditional encoded string to represent the schedule
 }
 
 
 ///////////////// SETUP FUNCTIONS //////////////////////
 
 // ParseJobConfig - Decode TOML config file and initiate ParseScheduleIntoFilters for each job
-func (h *JobHandler) ParseJobConfig(confFile string) (error) {
+func (h *JobSchedule) ParseJobConfig(confFile string) (error) {
 
   _, err := toml.DecodeFile(confFile, &h)
   if err != nil {
@@ -84,7 +86,7 @@ func (h *JobHandler) ParseJobConfig(confFile string) (error) {
 }
 
 // WriteJobConfig - update the written config file with any changes that have occured
-func (h *JobHandler) WriteJobConfig(confFile string) (error) {
+func (h *JobSchedule) WriteJobConfig(confFile string) (error) {
 
   var err error
 
@@ -95,8 +97,8 @@ func (h *JobHandler) WriteJobConfig(confFile string) (error) {
   }
 
   writer, err := os.Create(confFile)
-  handler, err := h.MakeAPIFormat()
-  if err := toml.NewEncoder(writer).Encode(handler); err != nil {
+  schedule, err := h.MakeAPIFormat()
+  if err := toml.NewEncoder(writer).Encode(schedule); err != nil {
 
     logrus.Error("Error encoding TOML: %s", err)
     err = os.Rename(backupFile, confFile)
@@ -105,9 +107,9 @@ func (h *JobHandler) WriteJobConfig(confFile string) (error) {
   return err
 }
 
-// CheckConfig - Sanity checks on the JobHandler and builds LabelToIndex.
+// CheckConfig - Sanity checks on the JobSchedule and builds LabelToIndex.
 // MUST BE RUN EVERYTIME THE RUNNING CONFIG IS CHANGED!
-func (h *JobHandler) CheckConfig() error {
+func (h *JobSchedule) CheckConfig() error {
 
   var err error
 
@@ -291,31 +293,31 @@ func (j *JobConfig) buildCommand() *exec.Cmd {
 
 ///////////////// API FUNCTIONS //////////////////////
 
-// MakeAPIFormat - Remove internal data structures from JobHandler
-func (h *JobHandler) MakeAPIFormat() (JobHandlerAPI, error) {
+// MakeAPIFormat - Remove internal data structures from JobSchedule
+func (h *JobSchedule) MakeAPIFormat() (JobScheduleAPI, error) {
 
-  var apiHandler JobHandlerAPI
+  var apiHandler JobScheduleAPI
   var err error
   for jobIndex, _ := range h.Job {
 
     // Convert the config to API format
     apiJobConfig, err := h.Job[jobIndex].MakeAPIFormat(*h)
     if err != nil {
-      return JobHandlerAPI{}, err
+      return JobScheduleAPI{}, err
     }
 
     // Append the API job to the API schedule
     apiHandler.Job = append(apiHandler.Job, apiJobConfig)
     if err != nil {
-      return JobHandlerAPI{}, err
+      return JobScheduleAPI{}, err
     }
   }
 
   return apiHandler, err
 }
 
-// MakeAPIFormat - Remove internal data structures from JobHandler
-func (j *JobConfig) MakeAPIFormat(parentHandler JobHandler) (JobConfigAPI, error) {
+// MakeAPIFormat - Remove internal data structures from JobSchedule
+func (j *JobConfig) MakeAPIFormat(parentHandler JobSchedule) (JobConfigAPI, error) {
 
   var err error
   _, myID, err := parentHandler.GetJobByLabel(j.Label)
@@ -327,19 +329,20 @@ func (j *JobConfig) MakeAPIFormat(parentHandler JobHandler) (JobConfigAPI, error
     Label: j.Label,
     Command: j.Command,
     GroupName: j.GroupName,
-    Schedule: j.Schedule }
+    Schedule: j.Schedule,
+    Locking: j.Locking}
 
   return apiJobConfig, err
 }
 
 // GetJobByTitle - Find a job using its title
-func (h *JobHandler) GetJobByLabel(title string) (JobConfig, int, error) {
+func (h *JobSchedule) GetJobByLabel(title string) (JobConfig, int, error) {
   var err error
   index, exists := h.LabelToIndex[title]
   if exists == true {
     return h.Job[index], index, err
   } else {
-    spacesTitle := strings.Replace(title,"_"," ",-1)
+    spacesTitle := strings.Replace(title, "_", " ", -1)
     index, exists := h.LabelToIndex[spacesTitle]
     if exists == true {
       return h.Job[index], index, err
@@ -350,7 +353,7 @@ func (h *JobHandler) GetJobByLabel(title string) (JobConfig, int, error) {
 }
 
 // GetJobByID - Find a job using its ID
-func (h *JobHandler) GetJobByID(jobID int) (JobConfig, error) {
+func (h *JobSchedule) GetJobByID(jobID int) (JobConfig, error) {
   var err error
   if jobID >= 0 && jobID <= len(h.Job) {
     return h.Job[jobID], err

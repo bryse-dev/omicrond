@@ -107,7 +107,7 @@ func TestApiRoutes(t *testing.T) {
   resp.Body.Close()
 
   // Turn off the daemon
-  runningChanComm <- api.ChanComm{Signal: "shutdown", Handler: job.JobHandler{} }
+  runningChanComm <- api.ChanComm{Signal: "shutdown", Handler: job.JobSchedule{} }
 }
 
 func runApiTest (t *testing.T, resp *http.Response, testingNoErr bool) {

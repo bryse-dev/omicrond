@@ -22,9 +22,9 @@ func TestConvertLegacyConfig(t *testing.T) {
     So(err, ShouldEqual, nil)
   })
 
-  var schedule = job.JobHandler{}
+  var schedule = job.JobSchedule{}
   err = schedule.ParseJobConfig(fileOutString)
-  Convey("Should be able to unmarshal converted config into JobHandler", t, func() {
+  Convey("Should be able to unmarshal converted config into JobSchedule", t, func() {
     So(err, ShouldEqual, nil)
   })
 

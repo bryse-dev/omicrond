@@ -11,7 +11,7 @@ import (
 
 const MYSQLDATETIMELAYOUT = "2006-01-02 15:04:05"
 
-type TestingJobHandler struct {
+type TestingJobSchedule struct {
   TestCase []TestingJob
 }
 
@@ -28,13 +28,13 @@ type TestConfig struct {
 
 func TestJobParseAndFilterCreation(t *testing.T) {
 
-  var handler = TestingJobHandler{}
-  err := handler.ParseTestJobConfig("../unit_test/TestJobParseAndFilterCreation.toml")
+  var schedule = TestingJobSchedule{}
+  err := schedule.ParseTestJobConfig("../unit_test/TestJobParseAndFilterCreation.toml")
   if err != nil {
     fmt.Println(err)
   }
 
-  for testCaseIndex, testCase := range handler.TestCase {
+  for testCaseIndex, testCase := range schedule.TestCase {
     for _, test := range testCase.Test {
 
       //Run test
@@ -55,7 +55,7 @@ func TestJobParseAndFilterCreation(t *testing.T) {
   }
 }
 
-func (h *TestingJobHandler) ParseTestJobConfig(confFile string) (error) {
+func (h *TestingJobSchedule) ParseTestJobConfig(confFile string) (error) {
 
   fmt.Println("Parsing unit-test file: " + confFile)
   _, err := toml.DecodeFile(confFile, &h)

@@ -64,10 +64,10 @@ func main() {
     logrus.Fatal("File does not exists: " + configFile)
   }
 
-  // Read in the file and parse into a job.JobHandler object
+  // Read in the file and parse into a job.JobSchedule object
   jobHandler := readConfigFile(configFile)
 
-  // Run sanity checks on the JobHandler
+  // Run sanity checks on the JobSchedule
   err := jobHandler.CheckConfig()
   if err != nil {
     logrus.Fatal(err)
@@ -78,7 +78,7 @@ func main() {
 }
 
 // Write the TOML config to the passed in file
-func writeNewConfigFile(jobHandler job.JobHandler, writer *os.File) {
+func writeNewConfigFile(jobHandler job.JobSchedule, writer *os.File) {
 
   if err := toml.NewEncoder(writer).Encode(jobHandler); err != nil {
     logrus.Fatal("Error encoding TOML: %s", err)
@@ -88,9 +88,9 @@ func writeNewConfigFile(jobHandler job.JobHandler, writer *os.File) {
 }
 
 // Read legacy config and parse out each Job
-func readConfigFile(configFile string) (job.JobHandler) {
+func readConfigFile(configFile string) (job.JobSchedule) {
 
-  var handler job.JobHandler
+  var schedule job.JobSchedule
 
   // Open the file for reading and defer closing
   file, err := os.Open(configFile)
@@ -119,7 +119,7 @@ func readConfigFile(configFile string) (job.JobHandler) {
         logrus.Fatal("Incorrect configuration: [line]")
       }
 
-      handler.Job = append(handler.Job, jobObj)
+      schedule.Job = append(schedule.Job, jobObj)
       titleCounter++
     }
   }
@@ -128,6 +128,6 @@ func readConfigFile(configFile string) (job.JobHandler) {
     logrus.Fatal(err)
   }
 
-  return handler
+  return schedule
 }
 
