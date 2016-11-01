@@ -6,8 +6,6 @@ import (
   "strconv"
   "time"
   "os"
-  "os/exec"
-  "bufio"
   "github.com/BurntSushi/toml"
   "github.com/Sirupsen/logrus"
 )
@@ -215,80 +213,6 @@ func (j *JobConfig) CheckIfScheduled(timeToCheck time.Time) (bool) {
   }
 
   return true
-}
-
-// Run - Executes command
-func (j *JobConfig) Run() {
-
-  var err error
-
-
-  // Build the system level command from the configured command string
-  command := j.buildCommand()
-  if err != nil {
-    logrus.Error(err)
-  }
-
-  // Create handles for both stdin and stdout
-  stdOut, err := command.StdoutPipe()
-  if err != nil {
-    logrus.Error(err)
-    return
-  }
-  stdErr, err := command.StderrPipe()
-  if err != nil {
-    logrus.Error(err)
-    return
-  }
-
-  // Attach scanners to the IO handles
-  stdOutScanner := bufio.NewScanner(stdOut)
-  stdErrScanner := bufio.NewScanner(stdErr)
-
-  // Spawn goroutines to effectively tail the IO scanners
-  go func() {
-    for stdOutScanner.Scan() {
-      logrus.Debug("STDOUT | " + stdOutScanner.Text())
-    }
-  }()
-
-  go func() {
-    for stdErrScanner.Scan() {
-      logrus.Debug("STDERR | " + stdErrScanner.Text())
-    }
-  }()
-
-  // Start the command
-  logrus.Info("Running [" + j.Label + "]: " + strings.Join(command.Args, " "))
-  err = command.Start()
-  if err != nil {
-    logrus.Error(err)
-    return
-  }
-
-  // Wait for the command to complete
-  logrus.Debug("Waiting for command to complete")
-  command.Wait()
-  logrus.Debug("Command completed")
-
-  return
-}
-
-// buildCommand - Convert string to executablte exec.Cmd type
-func (j *JobConfig) buildCommand() *exec.Cmd {
-
-  // Split on spaces
-  components := strings.Split(string(j.Command), " ")
-  if len(components) == 0 {
-    logrus.Error("Missing exec command in job configuration")
-  }
-
-  // Shift off the executable from the arguments
-  executable, components := components[0], components[1:]
-
-  // Create the exec.Cmd object and attach to JobConfig
-  cmdPtr := exec.Command(executable, components...)
-  return cmdPtr
 }
 
 ///////////////// API FUNCTIONS //////////////////////

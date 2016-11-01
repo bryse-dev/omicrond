@@ -91,12 +91,15 @@ func startSchedulingLoop(schedule job.JobSchedule, jobConfig string) {
   // Keep track of the last minute that was run.  This way we can sit quietly until the next minute comes.
   lastCheckTime := time.Now().Truncate(time.Minute)
 
+  // Keep track of running jobs
+  Running := job.RunningJobTracker{}
+  Running.Jobs = make(map[string]job.RunningJob)
+
   // To infinity, and beyond
   for {
 
     // Get the current minute with the seconds rounded down
     currentTime := time.Now().Truncate(time.Minute)
-
 
     // Wait patiently for a new minute
     if currentTime != lastCheckTime {
@@ -104,17 +107,50 @@ func startSchedulingLoop(schedule job.JobSchedule, jobConfig string) {
       //Check each configured job to see if it needs to be run in this minute
       logrus.Info("Running filters: " + currentTime.String())
       for jobIndex, _ := range schedule.Job {
+
         logrus.Debug("Checking: " + schedule.Job[jobIndex].Label)
         runJob := schedule.Job[jobIndex].CheckIfScheduled(currentTime)
 
         if runJob == true {
-          go schedule.Job[jobIndex].Run()
+
+          // Prep the Job for Running and create a tracking token
+          runToken := job.CreateRunToken()
+          newJob := job.RunningJob{
+            Token: runToken,
+            Config: schedule.Job[jobIndex],
+            Channel: make(chan string)}
+
+          // Add the tracking token to the tracker
+          Running.Lock()
+          Running.Jobs[runToken] = newJob
+          Running.Unlock()
+
+          // Split off the job into a goroutine
+          go func(Running job.RunningJobTracker, newJob job.RunningJob, runToken string) {
+
+            logrus.Info("Adding job " + runToken)
+            // Start the job
+            newJob.Run()
+
+            // On completion, remove the tracking token from the tracker
+            Running.RLock()
+            _, ok := Running.Jobs[runToken]
+            Running.RUnlock()
+
+            if ok {
+              logrus.Info("Removing job " + runToken)
+              Running.Lock()
+              delete(Running.Jobs, runToken)
+              Running.Unlock()
+            } else {
+              logrus.Error("Could not find runToken on completion")
+            }
+          }(Running, newJob, runToken)
         }
       }
 
       // Update the minute lock and take a break
       lastCheckTime = currentTime
-      time.Sleep(time.Second)
 
     } else {
 
