@@ -155,11 +155,7 @@ func startSchedulingLoop(schedule job.JobSchedule, jobConfig string) {
     } else {
 
       // Determine the amount of free time available to listen to a channel
-      // Stops listening a second before the next minute so that it kicks of goroutines asap
-      timeout := time.Now().Truncate(time.Minute).Add(time.Minute).Sub(time.Now().Add(time.Second))
-      if timeout < (1 * time.Second) {
-        continue
-      }
+      timeout := time.Now().Truncate(time.Minute).Add(time.Minute).Sub(time.Now())
       logrus.Debug("Listening to channel for the next " + timeout.String() + " seconds")
 
       // Between scheduling, be open to schedule changes via API
