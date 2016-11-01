@@ -5,6 +5,7 @@ import (
   "encoding/json"
   "strconv"
   "time"
+  "errors"
   "github.com/Sirupsen/logrus"
   "github.com/gorilla/mux"
   "github.com/brysearl/omicrond/job"
@@ -14,7 +15,7 @@ import (
 
 type ChanComm struct {
   Signal  string
-  Handler job.JobHandler
+  Handler job.JobSchedule
 }
 
 var runningChanComm chan ChanComm
@@ -59,14 +60,14 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
   return
 }
 
-// getJobList - Send a JSON representation of the JobHandler object within job.go
+// getJobList - Send a JSON representation of the JobSchedule object within job.go
 func getJobList(w http.ResponseWriter, r *http.Request) {
   logrus.Debug("API request for Omicrond job list")
 
   encoder := json.NewEncoder(w)
 
   // Request the current running schedule from the main scheduling loop
-  runningChanComm <- ChanComm{Signal: "getRunningSchedule", Handler: job.JobHandler{} }
+  runningChanComm <- ChanComm{Signal: "getRunningSchedule", Handler: job.JobSchedule{} }
   returnComm := <-runningChanComm
   currentSchedule := returnComm.Handler
   apiRunningSchedule, err := currentSchedule.MakeAPIFormat()
@@ -94,7 +95,7 @@ func getJobByLabel(w http.ResponseWriter, r *http.Request) {
   jobLabelStr := vars["jobLabel"]
 
   // Request the current running schedule from the main scheduling loop
-  runningChanComm <- ChanComm{Signal: "getRunningSchedule", Handler: job.JobHandler{} }
+  runningChanComm <- ChanComm{Signal: "getRunningSchedule", Handler: job.JobSchedule{} }
   returnComm := <-runningChanComm
   currentSchedule := returnComm.Handler
 
@@ -130,7 +131,7 @@ func modifyJobByLabel(w http.ResponseWriter, r *http.Request) {
   jobLabelStr := vars["jobLabel"]
 
   // Request the current running schedule from the main scheduling loop
-  runningChanComm <- ChanComm{Signal: "getRunningSchedule", Handler: job.JobHandler{} }
+  runningChanComm <- ChanComm{Signal: "getRunningSchedule", Handler: job.JobSchedule{} }
   returnComm := <-runningChanComm
   currentSchedule := returnComm.Handler
 
@@ -141,27 +142,10 @@ func modifyJobByLabel(w http.ResponseWriter, r *http.Request) {
     return
   }
 
-  // Change the fields to the new settings
-  newLabel := r.PostFormValue("label")
-  if newLabel != "" {
-    requestedJob.Label = newLabel
-  }
-  newScheduleStr := r.PostFormValue("schedule")
-  if newScheduleStr != "" {
-    requestedJob.Schedule = newScheduleStr
-    err = requestedJob.ParseScheduleIntoFilters(false)
-    if err != nil {
-      http.Error(w, "{ \"Error\":\"" + err.Error() + "\"}", http.StatusBadRequest)
-      return
-    }
-  }
-  newCommand := r.PostFormValue("command")
-  if newCommand != "" {
-    requestedJob.Command = newCommand
-  }
-  newGroupName := r.PostFormValue("groupName")
-  if newGroupName != "" {
-    requestedJob.GroupName = newGroupName
+  err = parseFormFieldsIntoJobConfig(&requestedJob, r)
+  if err != nil {
+    http.Error(w, "{ \"Error\":\"" + err.Error() + "\"}", http.StatusBadRequest)
+    return
   }
 
   // Put the job back into the schedule
@@ -189,45 +173,16 @@ func createJob(w http.ResponseWriter, r *http.Request) {
   logrus.Debug("API request to create Omicrond job configuration")
 
   // Request the current running schedule from the main scheduling loop
-  runningChanComm <- ChanComm{Signal: "getRunningSchedule", Handler: job.JobHandler{} }
+  runningChanComm <- ChanComm{Signal: "getRunningSchedule", Handler: job.JobSchedule{} }
   returnComm := <-runningChanComm
   currentSchedule := returnComm.Handler
 
   // Create the empty Job
   newJob := job.JobConfig{}
 
-  // Change the fields to the new settings
-  newLabel := r.PostFormValue("label")
-  if newLabel != "" {
-    newJob.Label = newLabel
-  } else {
-    http.Error(w, "{ \"Error\":\"" + "Requires parameter[label]" + "\"}", http.StatusBadRequest)
-    return
-  }
-  newScheduleStr := r.PostFormValue("schedule")
-  if newScheduleStr != "" {
-    newJob.Schedule = newScheduleStr
-    err := newJob.ParseScheduleIntoFilters(false)
-    if err != nil {
-      http.Error(w, "{ \"Error\":\"" + err.Error() + "\"}", http.StatusBadRequest)
-      return
-    }
-  } else {
-    http.Error(w, "{ \"Error\":\"" + "Requires parameter[schedule]" + "\"}", http.StatusBadRequest)
-    return
-  }
-  newCommand := r.PostFormValue("command")
-  if newCommand != "" {
-    newJob.Command = newCommand
-  } else {
-    http.Error(w, "{ \"Error\":\"" + "Requires parameter[command]" + "\"}", http.StatusBadRequest)
-    return
-  }
-  newGroupName := r.PostFormValue("groupName")
-  if newGroupName != "" {
-    newJob.GroupName = newGroupName
-  } else {
-    http.Error(w, "{ \"Error\":\"" + "Requires parameter[groupName]" + "\"}", http.StatusBadRequest)
+  err := parseFormFieldsIntoJobConfig(&newJob, r)
+  if err != nil {
+    http.Error(w, "{ \"Error\":\"" + err.Error() + "\"}", http.StatusBadRequest)
     return
   }
 
@@ -236,7 +191,7 @@ func createJob(w http.ResponseWriter, r *http.Request) {
   newSchedule.Job = append(newSchedule.Job, newJob)
 
   // Make sure the changes are okay
-  err := newSchedule.CheckConfig()
+  err = newSchedule.CheckConfig()
   if err != nil {
     http.Error(w, "{ \"Error\":\"" + err.Error() + "\"}", http.StatusBadRequest)
     return
@@ -256,7 +211,7 @@ func deleteJobByLabel(w http.ResponseWriter, r *http.Request) {
   jobLabelStr := vars["jobLabel"]
 
   // Request the current running schedule from the main scheduling loop
-  runningChanComm <- ChanComm{Signal: "getRunningSchedule", Handler: job.JobHandler{} }
+  runningChanComm <- ChanComm{Signal: "getRunningSchedule", Handler: job.JobSchedule{} }
   returnComm := <-runningChanComm
   currentSchedule := returnComm.Handler
 
@@ -282,4 +237,52 @@ func deleteJobByLabel(w http.ResponseWriter, r *http.Request) {
   runningChanComm <- ChanComm{Signal: "replaceRunningSchedule", Handler: newSchedule}
 
   return
+}
+
+func parseFormFieldsIntoJobConfig (newJob *job.JobConfig, r *http.Request) (error) {
+
+  var err error
+
+  // Change the fields to the new settings
+  newLabel := r.PostFormValue("label")
+  if newLabel != "" {
+    newJob.Label = newLabel
+  } else {
+    return errors.New("{ \"Error\":\"" + "Requires parameter[label]" + "\"}")
+  }
+  newScheduleStr := r.PostFormValue("schedule")
+  if newScheduleStr != "" {
+    newJob.Schedule = newScheduleStr
+    err := newJob.ParseScheduleIntoFilters(false)
+    if err != nil {
+      return errors.New("{ \"Error\":\"" + err.Error() + "\"}")
+      return errors.New("Error parsing form fields")
+    }
+  } else {
+    return errors.New("{ \"Error\":\"" + "Requires parameter[schedule]" + "\"}")
+  }
+  newCommand := r.PostFormValue("command")
+  if newCommand != "" {
+    newJob.Command = newCommand
+  } else {
+    return errors.New("{ \"Error\":\"" + "Requires parameter[command]" + "\"}")
+  }
+  newGroupName := r.PostFormValue("groupName")
+  if newGroupName != "" {
+    newJob.GroupName = newGroupName
+  } else {
+    return errors.New("{ \"Error\":\"" + "Requires parameter[groupName]" + "\"}")
+  }
+  newLocking := r.PostFormValue("locking")
+  if newLocking != "" {
+    if newLocking == "true" {
+      newJob.Locking = true
+    } else if newLocking == "false" {
+      newJob.Locking = true
+    } else {
+      return errors.New("{ \"Error\":\"form field 'locking' must equal either 'true' or 'false'\"}")
+    }
+  }
+
+  return err
 }

@@ -1,8 +1,9 @@
 [[job]]
 label = "Minutely"
-command = "ping -c 10 127.0.0.1"
+command = "ping -c 65 127.0.0.1"
 groupName = "Test"
 schedule = "* * * * *"  # every minute
+locking = true
 
 [[job]]
 label = "Quarter Hourly"

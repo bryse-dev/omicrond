@@ -70,7 +70,7 @@ func main() {
   logrus.Info("Starting")
 
   logrus.Info("Reading job configuration file: " + conf.Attr.JobConfigPath)
-  var schedule job.JobHandler
+  var schedule job.JobSchedule
   err := schedule.ParseJobConfig(conf.Attr.JobConfigPath)
   if err != nil {
     logrus.Fatal(err)
@@ -86,10 +86,14 @@ func main() {
 }
 
 // startSchedulingLoop - Endless loop that checks jobs every minute and executes them if scheduled
-func startSchedulingLoop(schedule job.JobHandler, jobConfig string) {
+func startSchedulingLoop(schedule job.JobSchedule, jobConfig string) {
 
   // Keep track of the last minute that was run.  This way we can sit quietly until the next minute comes.
   lastCheckTime := time.Now().Truncate(time.Minute)
+
+  // Keep track of running jobs
+  Running := job.RunningJobTracker{}
+  Running.Jobs = make(map[string]job.RunningJob)
 
   // To infinity, and beyond
   for {
@@ -97,33 +101,79 @@ func startSchedulingLoop(schedule job.JobHandler, jobConfig string) {
     // Get the current minute with the seconds rounded down
     currentTime := time.Now().Truncate(time.Minute)
 
-
     // Wait patiently for a new minute
     if currentTime != lastCheckTime {
 
       //Check each configured job to see if it needs to be run in this minute
       logrus.Info("Running filters: " + currentTime.String())
       for jobIndex, _ := range schedule.Job {
+
         logrus.Debug("Checking: " + schedule.Job[jobIndex].Label)
         runJob := schedule.Job[jobIndex].CheckIfScheduled(currentTime)
 
         if runJob == true {
-          go schedule.Job[jobIndex].Run()
+
+          // Check to see if its running and skip if locking attribute enabled
+          if schedule.Job[jobIndex].Locking == true {
+            var skip bool
+            Running.RLock()
+            for runToken, _ := range Running.Jobs {
+              if schedule.Job[jobIndex].Label == Running.Jobs[runToken].Config.Label {
+                skip = true
+                break
+              }
+            }
+            Running.RUnlock()
+
+            if skip {
+              logrus.Info(schedule.Job[jobIndex].Label + " running and locked.  Skipping.")
+              continue
+            }
+          }
+
+          // Prep the Job for Running and create a tracking token
+          runToken := job.CreateRunToken()
+          newJob := job.RunningJob{
+            Token: runToken,
+            Config: schedule.Job[jobIndex],
+            Channel: make(chan string)}
+
+          // Add the tracking token to the tracker
+          Running.Lock()
+          Running.Jobs[runToken] = newJob
+          Running.Unlock()
+
+          // Split off the job into a goroutine
+          go func(Running job.RunningJobTracker, newJob job.RunningJob, runToken string) {
+
+            logrus.Info("Adding job " + runToken)
+            // Start the job
+            newJob.Run()
+
+            // On completion, remove the tracking token from the tracker
+            Running.RLock()
+            _, ok := Running.Jobs[runToken]
+            Running.RUnlock()
+
+            if ok {
+              logrus.Info("Removing job " + runToken)
+              Running.Lock()
+              delete(Running.Jobs, runToken)
+              Running.Unlock()
+            } else {
+              logrus.Error("Could not find runToken on completion")
+            }
+          }(Running, newJob, runToken)
         }
       }
 
       // Update the minute lock and take a break
       lastCheckTime = currentTime
-      time.Sleep(time.Second)
 
     } else {
 
       // Determine the amount of free time available to listen to a channel
-      // Stops listening a second before the next minute so that it kicks of goroutines asap
-      timeout := time.Now().Truncate(time.Minute).Add(time.Minute).Sub(time.Now().Add(time.Second))
-      if timeout < (1 * time.Second) {
-        continue
-      }
+      timeout := time.Now().Truncate(time.Minute).Add(time.Minute).Sub(time.Now())
       logrus.Debug("Listening to channel for the next " + timeout.String() + " seconds")
 
       // Between scheduling, be open to schedule changes via API
