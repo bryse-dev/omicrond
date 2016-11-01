@@ -113,6 +113,24 @@ func startSchedulingLoop(schedule job.JobSchedule, jobConfig string) {
 
         if runJob == true {
 
+          // Check to see if its running and skip if locking attribute enabled
+          if schedule.Job[jobIndex].Locking == true {
+            var skip bool
+            Running.RLock()
+            for runToken, _ := range Running.Jobs {
+              if schedule.Job[jobIndex].Label == Running.Jobs[runToken].Config.Label {
+                skip = true
+                break
+              }
+            }
+            Running.RUnlock()
+
+            if skip {
+              logrus.Info(schedule.Job[jobIndex].Label + " running and locked.  Skipping.")
+              continue
+            }
+          }
+
           // Prep the Job for Running and create a tracking token
           runToken := job.CreateRunToken()
           newJob := job.RunningJob{
