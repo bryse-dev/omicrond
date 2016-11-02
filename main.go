@@ -2,6 +2,7 @@ package main
 
 import (
   "flag"
+  "os"
   "github.com/Sirupsen/logrus"
   "github.com/brysearl/omicrond/conf"
   "github.com/brysearl/omicrond/daemon"
@@ -35,6 +36,14 @@ func init() {
 
   // Set the port of the api service
   conf.Attr.APITimeout = *apiTimeoutPtr
+
+  // Create directories if they don't exist
+  if err := os.MkdirAll(conf.Attr.BaseDir,0755); err != nil {
+    logrus.Fatal(err)
+  }
+  if err := os.MkdirAll(conf.Attr.LoggingPath,0755); err != nil {
+    logrus.Fatal(err)
+  }
 
   switch {
   case conf.Attr.LogLevel == 1:

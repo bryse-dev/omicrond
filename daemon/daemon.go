@@ -89,10 +89,12 @@ func startSchedulingLoop(schedule job.JobSchedule, jobConfig string) {
           Running.Unlock()
 
           // Split off the job into a goroutine
-          go func(Running job.RunningJobTracker, newJob job.RunningJob, runToken string) {
+          go func(Running job.RunningJobTracker, newJob job.RunningJob, runToken string, isUnitTest bool) {
 
             // Start the job
-            newJob.Run()
+            if isUnitTest != true {
+              newJob.Run()
+            }
 
             // On completion, remove the tracking token from the tracker
             Running.RLock()
@@ -107,7 +109,7 @@ func startSchedulingLoop(schedule job.JobSchedule, jobConfig string) {
             } else {
               logrus.Error("Could not find runToken on completion")
             }
-          }(Running, newJob, runToken)
+          }(Running, newJob, runToken, isUnitTest)
         }
       }
 

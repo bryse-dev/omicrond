@@ -5,10 +5,13 @@ import (
   "os/exec"
   "bufio"
   "io"
+  "os"
   "strings"
   "crypto/rand"
   "sync"
+  "time"
   "github.com/Sirupsen/logrus"
+  "github.com/brysearl/omicrond/conf"
 )
 
 type RunningJobTracker struct {
@@ -54,17 +57,45 @@ func (r *RunningJob) Run() {
   stdErrScanner := bufio.NewScanner(r.StdErr)
 
   // Spawn goroutines to effectively tail the IO scanners
-  go func() {
+  go func(r *RunningJob) {
+
+    // Setup logfile for STDOUT
+    logPath := r.DetermineLoggingDir()
+    if err := os.MkdirAll(logPath,0755); err != nil {
+      logrus.Error(err)
+    }
+    logFile, err := os.Create(logPath + "/stdout.txt")
+    if err != nil {
+      logrus.Error(err)
+    }
+
+    // Scan each line as they become available
     for stdOutScanner.Scan() {
       logrus.Debug("STDOUT | " + stdOutScanner.Text())
+      logFile.WriteString(stdOutScanner.Text() + "\n")
     }
-  }()
+    logFile.Close()
+  }(r)
 
-  go func() {
+  go func(r *RunningJob) {
+
+    // Setup logfile for STDERR
+    logPath := r.DetermineLoggingDir()
+    if err := os.MkdirAll(logPath,0755); err != nil {
+      logrus.Error(err)
+    }
+    logFile, err := os.Create(logPath + "/stderr.txt")
+    if err != nil {
+      logrus.Error(err)
+    }
+
+    // Scan each line as they become available
     for stdErrScanner.Scan() {
       logrus.Debug("STDERR | " + stdErrScanner.Text())
+      logFile.WriteString(stdOutScanner.Text() + "\n")
     }
-  }()
+    logFile.Close()
+  }(r)
 
   // Start the command
   logrus.Info("Running [" + r.Config.Label + "]: " + strings.Join(r.Exec.Args, " "))
@@ -97,6 +128,12 @@ func (r *RunningJob) buildCommand() *exec.Cmd {
   // Create the exec.Cmd object and attach to JobConfig
   cmdPtr := exec.Command(executable, components...)
   return cmdPtr
+}
+
+// DetermineLoggingPath - Get the filepath to write new logs to
+func (r *RunningJob) DetermineLoggingDir() string {
+
+  return conf.Attr.LoggingPath + "/" + time.Now().Format("2006-01-02") + "/" + strings.Replace(r.Config.Label," ","_",-1) + "/" + r.Token
 }
 
 func CreateRunToken() string {
