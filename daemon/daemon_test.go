@@ -1,4 +1,4 @@
-package main
+package daemon
 
 import (
   "testing"
@@ -24,11 +24,11 @@ func TestApiRoutes(t *testing.T) {
   isUnitTest = true
 
   // Set the unit_test config to be the config
-  conf.Attr.JobConfigPath = "unit_test/TestApiRoutes.toml"
+  conf.Attr.JobConfigPath = "../unit_test/TestApiRoutes.toml"
   conf.Attr.APIPort = 47685
 
   // Start the daemon
-  go main()
+  go StartDaemon()
 
   // Give it a few seconds to start
   time.Sleep(5 * time.Second)
