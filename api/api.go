@@ -10,6 +10,7 @@ import (
   "github.com/gorilla/mux"
   "github.com/brysearl/omicrond/job"
   "github.com/brysearl/omicrond/conf"
+  "github.com/goji/httpauth"
 )
 //"github.com/davecgh/go-spew/spew"
 
@@ -29,14 +30,14 @@ func StartServer(commChannel chan ChanComm) {
 
   logrus.Info("Starting HTTP interface")
   srv := &http.Server{
-    Handler:      router,
+    Handler:      httpauth.SimpleBasicAuth(conf.Attr.APIUser, conf.Attr.APIPassword)(router),
     Addr:         conf.Attr.APIAddress + ":" + strconv.Itoa(conf.Attr.APIPort),
     // Good practice: enforce timeouts for servers you create!
     WriteTimeout: time.Duration(conf.Attr.APITimeout) * time.Second,
     ReadTimeout:  time.Duration(conf.Attr.APITimeout) * time.Second,
   }
 
-  logrus.Fatal(srv.ListenAndServe())
+  logrus.Fatal(srv.ListenAndServeTLS(conf.Attr.APIPubKeyPath,conf.Attr.APIPrivKeyPath))
 
 }
 
@@ -49,6 +50,8 @@ func buildRoutes(router *mux.Router) *mux.Router {
   router.HandleFunc("/edit/job/{jobLabel:[a-zA-Z0-9_]+}", modifyJobByLabel).Methods("POST")
   router.HandleFunc("/create/job", createJob).Methods("POST")
   router.HandleFunc("/delete/job/{jobLabel:[a-zA-Z0-9_]+}", deleteJobByLabel).Methods("POST")
+
+
   return router
 }
 
