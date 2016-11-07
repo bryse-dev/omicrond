@@ -2,6 +2,7 @@ package daemon
 
 import (
   "testing"
+  "bytes"
   "net/http"
   "io/ioutil"
   "strconv"
@@ -26,6 +27,7 @@ func TestApiRoutes(t *testing.T) {
   // Set the unit_test config to be the config
   conf.Attr.JobConfigPath = "../unit_test/TestApiRoutes.toml"
   conf.Attr.APIPort = 47685
+  conf.Attr.APISSL = false
 
   // Start the daemon
   go StartDaemon()
@@ -33,9 +35,18 @@ func TestApiRoutes(t *testing.T) {
   // Give it a few seconds to start
   time.Sleep(5 * time.Second)
 
+
+  // Init an HTTP client
+  client := &http.Client{}
+
   // getJobList Route test success
   logrus.Info("Testing getJobList")
-  resp, err := http.Get("http://" + conf.Attr.APIAddress + ":" + strconv.Itoa(conf.Attr.APIPort) + "/get/job/list")
+
+  request, _ := http.NewRequest("GET","http://" + conf.Attr.APIAddress + ":" + strconv.Itoa(conf.Attr.APIPort) + "/get/job/list", nil)
+  request.SetBasicAuth(conf.Attr.APIUser, conf.Attr.APIPassword)
+  request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+  resp, err := client.Do(request)
+
   Convey("Should be able to build a Get request using daemon conf", t, func() {
     So(err, ShouldEqual, nil)
   })
@@ -44,7 +55,12 @@ func TestApiRoutes(t *testing.T) {
 
   // getJobByLabel Route test success
   logrus.Info("Testing getJobByLabel")
-  resp, err = http.Get("http://" + conf.Attr.APIAddress + ":" + strconv.Itoa(conf.Attr.APIPort) + "/get/job/Quarter_Hourly")
+
+  request, _ = http.NewRequest("GET","http://" + conf.Attr.APIAddress + ":" + strconv.Itoa(conf.Attr.APIPort) + "/get/job/Quarter_Hourly", nil)
+  request.SetBasicAuth(conf.Attr.APIUser, conf.Attr.APIPassword)
+  request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+  resp, err = client.Do(request)
+
   Convey("Should be able to build a Get request using daemon conf", t, func() {
     So(err, ShouldEqual, nil)
   })
@@ -54,10 +70,15 @@ func TestApiRoutes(t *testing.T) {
 
   // modifyJobByLabel Route test success
   logrus.Info("Testing modifyJobByLabel")
-  resp, err = http.PostForm("http://" + conf.Attr.APIAddress + ":" + strconv.Itoa(conf.Attr.APIPort) + "/edit/job/Minutely",
-    url.Values{
+
+  request, _ = http.NewRequest("POST","http://" + conf.Attr.APIAddress + ":" + strconv.Itoa(conf.Attr.APIPort) + "/edit/job/Minutely",
+    bytes.NewBufferString(url.Values{
       "label": {"Every Other Minute"},
-      "schedule": {"*/2 * * * *"}})
+      "schedule": {"*/2 * * * *"}}.Encode()))
+  request.SetBasicAuth(conf.Attr.APIUser, conf.Attr.APIPassword)
+  request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+  resp, err = client.Do(request)
+
   Convey("Should be able to build a Get request using daemon conf", t, func() {
     So(err, ShouldEqual, nil)
   })
@@ -66,26 +87,32 @@ func TestApiRoutes(t *testing.T) {
 
   // createJob Route test failure
   logrus.Info("Testing createJob with underscores")
-  resp, err = http.PostForm("http://" + conf.Attr.APIAddress + ":" + strconv.Itoa(conf.Attr.APIPort) + "/create/job",
-    url.Values{
+  request, _ = http.NewRequest("POST","http://" + conf.Attr.APIAddress + ":" + strconv.Itoa(conf.Attr.APIPort) + "/create/job",
+    bytes.NewBufferString(url.Values{
       "label": {"current_dir_every_minute"},
       "schedule": {"* * * * *"},
       "groupName": {"test"},
-      "command": {"/bin/pwd"}})
+      "command": {"/bin/pwd"}}.Encode()))
+  request.SetBasicAuth(conf.Attr.APIUser, conf.Attr.APIPassword)
+  request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+  resp, err = client.Do(request)
   Convey("Should be able to build a Get request using daemon conf", t, func() {
     So(err, ShouldEqual, nil)
   })
-
-  // createJob Route test success
   runApiTest(t,resp,false)
   resp.Body.Close()
+
+  // createJob Route test success
   logrus.Info("Testing createJob")
-  resp, err = http.PostForm("http://" + conf.Attr.APIAddress + ":" + strconv.Itoa(conf.Attr.APIPort) + "/create/job",
-    url.Values{
+  request, _ = http.NewRequest("POST","http://" + conf.Attr.APIAddress + ":" + strconv.Itoa(conf.Attr.APIPort) + "/create/job",
+    bytes.NewBufferString(url.Values{
       "label": {"current dir every minute"},
       "schedule": {"* * * * *"},
       "groupName": {"test"},
-      "command": {"/bin/pwd"}})
+      "command": {"/bin/pwd"}}.Encode()))
+  request.SetBasicAuth(conf.Attr.APIUser, conf.Attr.APIPassword)
+  request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+  resp, err = client.Do(request)
   Convey("Should be able to build a Get request using daemon conf", t, func() {
     So(err, ShouldEqual, nil)
   })
@@ -94,12 +121,15 @@ func TestApiRoutes(t *testing.T) {
 
   // deleteJobByLabel Route test success
   logrus.Info("Testing deleteJobByLabel")
-  resp, err = http.PostForm("http://" + conf.Attr.APIAddress + ":" + strconv.Itoa(conf.Attr.APIPort) + "/delete/job/Quarter_Hourly",
-    url.Values{
+  request, _ = http.NewRequest("POST","http://" + conf.Attr.APIAddress + ":" + strconv.Itoa(conf.Attr.APIPort) + "/delete/job/Quarter_Hourly",
+    bytes.NewBufferString(url.Values{
       "label": {"current dir every minute"},
       "schedule": {"* * * * *"},
       "groupName": {"test"},
-      "command": {"/bin/pwd"}})
+      "command": {"/bin/pwd"}}.Encode()))
+  request.SetBasicAuth(conf.Attr.APIUser, conf.Attr.APIPassword)
+  request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+  resp, err = client.Do(request)
   Convey("Should be able to build a Get request using daemon conf", t, func() {
     So(err, ShouldEqual, nil)
   })
@@ -132,5 +162,6 @@ func runApiTest (t *testing.T, resp *http.Response, testingNoErr bool) {
     }else{
       So(json.Error, ShouldNotEqual, "")
     }
+    So(string(body), ShouldNotContainSubstring, "Unauthorized")
   })
 }
