@@ -37,7 +37,11 @@ func StartServer(commChannel chan ChanComm) {
     ReadTimeout:  time.Duration(conf.Attr.APITimeout) * time.Second,
   }
 
-  logrus.Fatal(srv.ListenAndServeTLS(conf.Attr.APIPubKeyPath,conf.Attr.APIPrivKeyPath))
+  if conf.Attr.APISSL == true {
+    logrus.Fatal(srv.ListenAndServeTLS(conf.Attr.APIPubKeyPath, conf.Attr.APIPrivKeyPath))
+  }else{
+    logrus.Fatal(srv.ListenAndServe())
+  }
 
 }
 

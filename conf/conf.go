@@ -13,6 +13,7 @@ type DaemonConfig struct {
   APITimeout    int
   APIUser        string
   APIPassword    string
+  APISSL         bool
   APIPubKeyPath  string
   APIPrivKeyPath string
 }
@@ -23,16 +24,17 @@ func init() {
 
   // Set default configurations
   Attr.BaseDir = "/opt/omicrond"
-  Attr.SocketPath = Attr.BaseDir + "omicrond.sock"
-  Attr.JobConfigPath = "sample/samplejobConf.toml"
+  Attr.SocketPath = Attr.BaseDir + "/omicrond.sock"
+  Attr.JobConfigPath = Attr.BaseDir + "/sample/samplejobConf.toml"
   Attr.LoggingPath = Attr.BaseDir + "/logs"
   Attr.LogLevel = 0
   Attr.Port = 51515
-  Attr.APIAddress = "127.0.0.1"
+  Attr.APIAddress = "localhost"
   Attr.APIPort = 12221
   Attr.APITimeout = 5
   Attr.APIUser = "lrrr"
   Attr.APIPassword = "F00l!shhum4n"
-  Attr.APIPubKeyPath = "conf/omicrond_api.crt"
-  Attr.APIPrivKeyPath = "conf/omicrond_api.key"
+  Attr.APISSL = false
+  Attr.APIPubKeyPath = Attr.BaseDir + "/etc/omicrond_api.crt"
+  Attr.APIPrivKeyPath = Attr.BaseDir + "/etc/omicrond_api.key"
 }

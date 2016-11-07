@@ -27,6 +27,7 @@ func TestApiRoutes(t *testing.T) {
   // Set the unit_test config to be the config
   conf.Attr.JobConfigPath = "../unit_test/TestApiRoutes.toml"
   conf.Attr.APIPort = 47685
+  conf.Attr.APISSL = false
 
   // Start the daemon
   go StartDaemon()

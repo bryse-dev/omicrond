@@ -29,3 +29,6 @@ _testmain.go
 #Vim
 .swo*
 .swp*
+
+#Mac
+.DS_Store*

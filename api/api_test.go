@@ -14,6 +14,7 @@ func TestStartServer(t *testing.T) {
 
   // Start the server
   var dummyChan chan ChanComm
+  conf.Attr.APISSL = false
   go StartServer(dummyChan)
 
   // Give it a second to start
