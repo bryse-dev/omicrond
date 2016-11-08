@@ -12,7 +12,7 @@ import (
 var runningChanComm chan api.ChanComm
 var isUnitTest bool
 
-func StartDaemon(){
+func StartDaemon() {
 
   logrus.Info("Reading job configuration file: " + conf.Attr.JobConfigPath)
   var schedule job.JobSchedule
@@ -140,12 +140,14 @@ func startSchedulingLoop(schedule job.JobSchedule, jobConfig string) {
         // Spawn thread so we can get back to listening
           Running.RLock()
           go func(schedule job.JobSchedule, running job.RunningJobTracker) {
+
             // Send the running schedule to a requestor over the same channel
-            if incomingChanComm.Signal == "getRunningSchedule" {
-              runningChanComm <- api.ChanComm{RunningSchedule: schedule, Signal: "getRunningSchedule"}
-            } else if incomingChanComm.Signal == "getRunningJobs" {
-              runningChanComm <- api.ChanComm{RunningJobs: running, Signal: "getRunningJobs"}
-            } else if incomingChanComm.Signal == "replaceRunningSchedule" {
+            switch incomingChanComm.Signal {
+            case "scheduleGetList":
+              runningChanComm <- api.ChanComm{RunningSchedule: schedule, Signal: "scheduleGetList"}
+            case "runningjobGetList":
+              runningChanComm <- api.ChanComm{RunningJobs: running, Signal: "runningjobGetList"}
+            case "replaceRunningSchedule":
               // Replace the running schedule with that of the requestor
               err := incomingChanComm.RunningSchedule.CheckConfig()
               if err != nil {
@@ -157,13 +159,13 @@ func startSchedulingLoop(schedule job.JobSchedule, jobConfig string) {
                 incomingChanComm.RunningSchedule.WriteJobConfig(jobConfig)
               }
               schedule = incomingChanComm.RunningSchedule
-            } else if incomingChanComm.Signal == "shutdown" {
+            case "shutdown":
               logrus.Info("Recieved shutdown command.  Goodbye...")
               return
-            } else {
+            default:
               runningChanComm <- api.ChanComm{Error: errors.New("API ChanComm signal unknown or deprecated: " + incomingChanComm.Signal)}
             }
-          }(schedule,Running)
+          }(schedule, Running)
           Running.RUnlock()
         }
       }
