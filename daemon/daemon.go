@@ -2,6 +2,7 @@ package daemon
 
 import (
   "time"
+  "errors"
   "github.com/Sirupsen/logrus"
   "github.com/brysearl/omicrond/conf"
   "github.com/brysearl/omicrond/job"
@@ -118,13 +119,14 @@ func startSchedulingLoop(schedule job.JobSchedule, jobConfig string) {
 
     } else {
 
-      // Determine the amount of free time available to listen to a channel
-      timeout := time.Now().Truncate(time.Minute).Add(time.Minute).Sub(time.Now())
-      logrus.Debug("Listening to channel for the next " + timeout.String() + " seconds")
-
       // Between scheduling, be open to schedule changes via API
       stop := false
       for stop == false {
+
+        // Determine the amount of free time available to listen to a channel
+        timeout := time.Now().Truncate(time.Minute).Add(time.Minute).Sub(time.Now())
+        logrus.Debug("Listening to channel for the next " + timeout.String() + " seconds")
+
         select {
 
         // Timeout a second before the next minute and break out of channel loop
@@ -136,28 +138,33 @@ func startSchedulingLoop(schedule job.JobSchedule, jobConfig string) {
         case incomingChanComm := <-runningChanComm:
 
         // Spawn thread so we can get back to listening
-          go func() {
+          Running.RLock()
+          go func(schedule job.JobSchedule, running job.RunningJobTracker) {
             // Send the running schedule to a requestor over the same channel
             if incomingChanComm.Signal == "getRunningSchedule" {
-              runningChanComm <- api.ChanComm{Handler: schedule, Signal: "getRunningSchedule"}
-
+              runningChanComm <- api.ChanComm{RunningSchedule: schedule, Signal: "getRunningSchedule"}
+            } else if incomingChanComm.Signal == "getRunningJobs" {
+              runningChanComm <- api.ChanComm{RunningJobs: running, Signal: "getRunningJobs"}
             } else if incomingChanComm.Signal == "replaceRunningSchedule" {
               // Replace the running schedule with that of the requestor
-              err := incomingChanComm.Handler.CheckConfig()
+              err := incomingChanComm.RunningSchedule.CheckConfig()
               if err != nil {
                 logrus.Error(err)
               }
 
               logrus.Debug("Schedule Refreshed")
               if isUnitTest != true {
-                incomingChanComm.Handler.WriteJobConfig(jobConfig)
+                incomingChanComm.RunningSchedule.WriteJobConfig(jobConfig)
               }
-              schedule = incomingChanComm.Handler
+              schedule = incomingChanComm.RunningSchedule
             } else if incomingChanComm.Signal == "shutdown" {
               logrus.Info("Recieved shutdown command.  Goodbye...")
               return
+            } else {
+              runningChanComm <- api.ChanComm{Error: errors.New("API ChanComm signal unknown or deprecated: " + incomingChanComm.Signal)}
             }
-          }()
+          }(schedule,Running)
+          Running.RUnlock()
         }
       }
     }

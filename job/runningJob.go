@@ -20,12 +20,68 @@ type RunningJobTracker struct {
 }
 
 type RunningJob struct {
-  Token   string
-  Config  JobConfig
-  Channel chan string
-  Exec    *exec.Cmd
-  StdOut  io.ReadCloser
-  StdErr  io.ReadCloser
+  Token     string
+  Config    JobConfig
+  Channel   chan string
+  Exec      *exec.Cmd
+  StdOut    io.ReadCloser
+  StdErr    io.ReadCloser
+  StartTime time.Time
+}
+
+type RunningJobTrackerAPI struct {
+  Jobs []RunningJobAPI
+}
+
+type RunningJobAPI struct {
+  Token       string
+  StartTime time.Time
+  ElapsedTime time.Duration
+  PID         int
+  MemUse      int
+
+  Config      JobConfigAPI
+}
+
+// MakeAPIFormat - Convert internal object into external data
+func (t *RunningJobTracker)MakeAPIFormat() (RunningJobTrackerAPI, error) {
+
+  var apiTracker RunningJobTrackerAPI
+  var err error
+  for jobToken, jobObj := range t.Jobs {
+
+    // Convert the running job struct to API format
+    apiRunningJob, err := jobObj.MakeAPIFormat(jobToken)
+    if err != nil {
+      return RunningJobTrackerAPI{}, err
+    }
+
+    // Append the job to the API tracker
+    apiTracker.Jobs = append(apiTracker.Jobs, apiRunningJob)
+    if err != nil {
+      return RunningJobTrackerAPI{}, err
+    }
+  }
+
+  return apiTracker, err
+
+}
+
+// MakeAPIFormat - Convert internal object into external data
+func (j *RunningJob) MakeAPIFormat(jobToken string) (RunningJobAPI, error) {
+
+  apiConf, err := j.Config.MakeAPIFormat()
+  if err != nil {
+    return RunningJobAPI{}, err
+  }
+
+  apiRunningJob := RunningJobAPI{
+    Token:  jobToken,
+    StartTime: j.StartTime,
+    ElapsedTime: time.Now().Sub(j.StartTime),
+    Config:  apiConf }
+
+  return apiRunningJob, err
 }
 
 // Run - Executes command
@@ -61,7 +117,7 @@ func (r *RunningJob) Run() {
 
     // Setup logfile for STDOUT
     logPath := r.DetermineLoggingDir()
-    if err := os.MkdirAll(logPath,0755); err != nil {
+    if err := os.MkdirAll(logPath, 0755); err != nil {
       logrus.Error(err)
     }
     logFile, err := os.Create(logPath + "/stdout.txt")
@@ -81,7 +137,7 @@ func (r *RunningJob) Run() {
 
     // Setup logfile for STDERR
     logPath := r.DetermineLoggingDir()
-    if err := os.MkdirAll(logPath,0755); err != nil {
+    if err := os.MkdirAll(logPath, 0755); err != nil {
       logrus.Error(err)
     }
     logFile, err := os.Create(logPath + "/stderr.txt")
@@ -99,6 +155,7 @@ func (r *RunningJob) Run() {
 
   // Start the command
   logrus.Info("Running [" + r.Config.Label + "]: " + strings.Join(r.Exec.Args, " "))
+  r.StartTime = time.Now()
   err = r.Exec.Start()
   if err != nil {
     logrus.Error(err)
@@ -133,7 +190,7 @@ func (r *RunningJob) buildCommand() *exec.Cmd {
 // DetermineLoggingPath - Get the filepath to write new logs to
 func (r *RunningJob) DetermineLoggingDir() string {
 
-  return conf.Attr.LoggingPath + "/" + time.Now().Format("2006-01-02") + "/" + strings.Replace(r.Config.Label," ","_",-1) + "/" + r.Token
+  return conf.Attr.LoggingPath + "/" + time.Now().Format("2006-01-02") + "/" + strings.Replace(r.Config.Label, " ", "_", -1) + "/" + r.Token
 }
 
 func CreateRunToken() string {

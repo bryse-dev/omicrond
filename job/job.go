@@ -48,7 +48,6 @@ type JobScheduleAPI struct {
 
 // JobConfigAPI - Object representing a single scheduled job and is JSON friendly for API use
 type JobConfigAPI struct {
-  ID         int               // Index of the job in the JobSchedule
   Label      string            // The name of the job.  Used in logging
   Command    string            // String to be run on the system
   GroupName  string            // Used to relate jobs and in logging *unused*
@@ -217,7 +216,7 @@ func (j *JobConfig) CheckIfScheduled(timeToCheck time.Time) (bool) {
 
 ///////////////// API FUNCTIONS //////////////////////
 
-// MakeAPIFormat - Remove internal data structures from JobSchedule
+// MakeAPIFormat - Convert internal object into external data
 func (h *JobSchedule) MakeAPIFormat() (JobScheduleAPI, error) {
 
   var apiHandler JobScheduleAPI
@@ -225,7 +224,7 @@ func (h *JobSchedule) MakeAPIFormat() (JobScheduleAPI, error) {
   for jobIndex, _ := range h.Job {
 
     // Convert the config to API format
-    apiJobConfig, err := h.Job[jobIndex].MakeAPIFormat(*h)
+    apiJobConfig, err := h.Job[jobIndex].MakeAPIFormat()
     if err != nil {
       return JobScheduleAPI{}, err
     }
@@ -240,16 +239,11 @@ func (h *JobSchedule) MakeAPIFormat() (JobScheduleAPI, error) {
   return apiHandler, err
 }
 
-// MakeAPIFormat - Remove internal data structures from JobSchedule
-func (j *JobConfig) MakeAPIFormat(parentHandler JobSchedule) (JobConfigAPI, error) {
+// MakeAPIFormat - Convert internal object into external data
+func (j *JobConfig) MakeAPIFormat() (JobConfigAPI, error) {
 
   var err error
-  _, myID, err := parentHandler.GetJobByLabel(j.Label)
-  if err != nil {
-    return JobConfigAPI{}, errors.New("Cannot find job in the passed schedule")
-  }
   apiJobConfig := JobConfigAPI{
-    ID: myID,
     Label: j.Label,
     Command: j.Command,
     GroupName: j.GroupName,
