@@ -81,7 +81,8 @@ func startSchedulingLoop(schedule job.JobSchedule, jobConfig string) {
           newJob := job.RunningJob{
             Token: runToken,
             Config: schedule.Job[jobIndex],
-            Channel: make(chan string)}
+            Channel: make(chan string),
+            StartTime: time.Now()}
 
           // Add the tracking token to the tracker
           logrus.Debug("Adding job " + runToken + " to tracker")

@@ -35,7 +35,7 @@ type RunningJobTrackerAPI struct {
 
 type RunningJobAPI struct {
   Token       string
-  StartTime time.Time
+  StartTime   time.Time
   ElapsedTime time.Duration
   PID         int
   MemUse      int
@@ -132,7 +132,6 @@ func (r *RunningJob) Run() {
     }
     logFile.Close()
   }(r)
-
   go func(r *RunningJob) {
 
     // Setup logfile for STDERR
@@ -148,14 +147,34 @@ func (r *RunningJob) Run() {
     // Scan each line as they become available
     for stdErrScanner.Scan() {
       logrus.Debug("STDERR | " + stdErrScanner.Text())
-      logFile.WriteString(stdOutScanner.Text() + "\n")
+      logFile.WriteString(stdErrScanner.Text() + "\n")
     }
     logFile.Close()
   }(r)
 
+  // Open up channel to extend to API
+  go func(r *RunningJob) {
+    stop := false
+    for stop == false {
+      command := <-r.Channel
+      switch command {
+      case "end":
+        stop = true
+      case "stop process":
+        err := r.Exec.Process.Kill()
+        if err != nil {
+          r.Channel <- "failed"
+        }
+        r.Channel <- "success"
+      default:
+        r.Channel <- "unknown command"
+      }
+    }
+    logrus.Debug("Stopped command channel")
+  }(r)
+
   // Start the command
   logrus.Info("Running [" + r.Config.Label + "]: " + strings.Join(r.Exec.Args, " "))
-  r.StartTime = time.Now()
   err = r.Exec.Start()
   if err != nil {
     logrus.Error(err)
@@ -165,6 +184,7 @@ func (r *RunningJob) Run() {
   // Wait for the command to complete
   logrus.Debug("Waiting for command to complete")
   r.Exec.Wait()
+  r.Channel <- "end"
   logrus.Debug("Command completed")
 
   return
