@@ -39,10 +39,10 @@ func TestApiRoutes(t *testing.T) {
   // Init an HTTP client
   client := &http.Client{}
 
-  // getJobList Route test success
-  logrus.Info("Testing getJobList")
+  // scheduleGetList Route test success
+  logrus.Info("Testing scheduleGetList")
 
-  request, _ := http.NewRequest("GET","http://" + conf.Attr.APIAddress + ":" + strconv.Itoa(conf.Attr.APIPort) + "/get/job/list", nil)
+  request, _ := http.NewRequest("GET","http://" + conf.Attr.APIAddress + ":" + strconv.Itoa(conf.Attr.APIPort) + "/schedule/get/list", nil)
   request.SetBasicAuth(conf.Attr.APIUser, conf.Attr.APIPassword)
   request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
   resp, err := client.Do(request)
@@ -53,10 +53,10 @@ func TestApiRoutes(t *testing.T) {
   runApiTest(t,resp,true)
   resp.Body.Close()
 
-  // getJobByLabel Route test success
-  logrus.Info("Testing getJobByLabel")
+  // scheduleGetJob Route test success
+  logrus.Info("Testing scheduleGetJob")
 
-  request, _ = http.NewRequest("GET","http://" + conf.Attr.APIAddress + ":" + strconv.Itoa(conf.Attr.APIPort) + "/get/job/Quarter_Hourly", nil)
+  request, _ = http.NewRequest("GET","http://" + conf.Attr.APIAddress + ":" + strconv.Itoa(conf.Attr.APIPort) + "/schedule/get/job/Quarter_Hourly", nil)
   request.SetBasicAuth(conf.Attr.APIUser, conf.Attr.APIPassword)
   request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
   resp, err = client.Do(request)
@@ -68,10 +68,10 @@ func TestApiRoutes(t *testing.T) {
   resp.Body.Close()
 
 
-  // modifyJobByLabel Route test success
-  logrus.Info("Testing modifyJobByLabel")
+  // scheduleEditJob Route test success
+  logrus.Info("Testing scheduleEditJob")
 
-  request, _ = http.NewRequest("POST","http://" + conf.Attr.APIAddress + ":" + strconv.Itoa(conf.Attr.APIPort) + "/edit/job/Minutely",
+  request, _ = http.NewRequest("POST","http://" + conf.Attr.APIAddress + ":" + strconv.Itoa(conf.Attr.APIPort) + "/schedule/edit/job/Minutely",
     bytes.NewBufferString(url.Values{
       "label": {"Every Other Minute"},
       "schedule": {"*/2 * * * *"}}.Encode()))
@@ -85,9 +85,9 @@ func TestApiRoutes(t *testing.T) {
   runApiTest(t,resp,true)
   resp.Body.Close()
 
-  // createJob Route test failure
-  logrus.Info("Testing createJob with underscores")
-  request, _ = http.NewRequest("POST","http://" + conf.Attr.APIAddress + ":" + strconv.Itoa(conf.Attr.APIPort) + "/create/job",
+  // scheduleCreateJob Route test failure
+  logrus.Info("Testing scheduleCreateJob with underscores")
+  request, _ = http.NewRequest("POST","http://" + conf.Attr.APIAddress + ":" + strconv.Itoa(conf.Attr.APIPort) + "/schedule/create/job",
     bytes.NewBufferString(url.Values{
       "label": {"current_dir_every_minute"},
       "schedule": {"* * * * *"},
@@ -102,9 +102,9 @@ func TestApiRoutes(t *testing.T) {
   runApiTest(t,resp,false)
   resp.Body.Close()
 
-  // createJob Route test success
-  logrus.Info("Testing createJob")
-  request, _ = http.NewRequest("POST","http://" + conf.Attr.APIAddress + ":" + strconv.Itoa(conf.Attr.APIPort) + "/create/job",
+  // scheduleCreateJob Route test success
+  logrus.Info("Testing scheduleCreateJob")
+  request, _ = http.NewRequest("POST","http://" + conf.Attr.APIAddress + ":" + strconv.Itoa(conf.Attr.APIPort) + "/schedule/create/job",
     bytes.NewBufferString(url.Values{
       "label": {"current dir every minute"},
       "schedule": {"* * * * *"},
@@ -119,9 +119,9 @@ func TestApiRoutes(t *testing.T) {
   runApiTest(t,resp,true)
   resp.Body.Close()
 
-  // deleteJobByLabel Route test success
-  logrus.Info("Testing deleteJobByLabel")
-  request, _ = http.NewRequest("POST","http://" + conf.Attr.APIAddress + ":" + strconv.Itoa(conf.Attr.APIPort) + "/delete/job/Quarter_Hourly",
+  // scheduleDeleteJob Route test success
+  logrus.Info("Testing scheduleDeleteJob")
+  request, _ = http.NewRequest("POST","http://" + conf.Attr.APIAddress + ":" + strconv.Itoa(conf.Attr.APIPort) + "/schedule/delete/job/Quarter_Hourly",
     bytes.NewBufferString(url.Values{
       "label": {"current dir every minute"},
       "schedule": {"* * * * *"},
@@ -137,7 +137,7 @@ func TestApiRoutes(t *testing.T) {
   resp.Body.Close()
 
   // Turn off the daemon
-  runningChanComm <- api.ChanComm{Signal: "shutdown", Handler: job.JobSchedule{} }
+  runningChanComm <- api.ChanComm{Signal: "shutdown", RunningSchedule: job.JobSchedule{} }
 }
 
 func runApiTest (t *testing.T, resp *http.Response, testingNoErr bool) {

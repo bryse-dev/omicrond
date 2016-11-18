@@ -15,8 +15,10 @@ import (
 //"github.com/davecgh/go-spew/spew"
 
 type ChanComm struct {
-  Signal  string
-  Handler job.JobSchedule
+  Signal          string
+  RunningSchedule job.JobSchedule
+  RunningJobs     job.RunningJobTracker
+  Error           error
 }
 
 var runningChanComm chan ChanComm
@@ -39,7 +41,7 @@ func StartServer(commChannel chan ChanComm) {
 
   if conf.Attr.APISSL == true {
     logrus.Fatal(srv.ListenAndServeTLS(conf.Attr.APIPubKeyPath, conf.Attr.APIPrivKeyPath))
-  }else{
+  } else {
     logrus.Fatal(srv.ListenAndServe())
   }
 
@@ -49,12 +51,15 @@ func StartServer(commChannel chan ChanComm) {
 func buildRoutes(router *mux.Router) *mux.Router {
 
   router.HandleFunc("/.status", getStatus).Methods("GET")
-  router.HandleFunc("/get/job/list", getJobList).Methods("GET")
-  router.HandleFunc("/get/job/{jobLabel:[a-zA-Z0-9_]+}", getJobByLabel).Methods("GET")
-  router.HandleFunc("/edit/job/{jobLabel:[a-zA-Z0-9_]+}", modifyJobByLabel).Methods("POST")
-  router.HandleFunc("/create/job", createJob).Methods("POST")
-  router.HandleFunc("/delete/job/{jobLabel:[a-zA-Z0-9_]+}", deleteJobByLabel).Methods("POST")
-
+  router.HandleFunc("/schedule/get/list", scheduleGetList).Methods("GET")
+  router.HandleFunc("/schedule/get/job/{jobLabel:[a-zA-Z0-9_]+}", scheduleGetJob).Methods("GET")
+  router.HandleFunc("/schedule/edit/job/{jobLabel:[a-zA-Z0-9_]+}", scheduleEditJob).Methods("POST")
+  router.HandleFunc("/schedule/create/job", scheduleCreateJob).Methods("POST")
+  router.HandleFunc("/schedule/delete/job/{jobLabel:[a-zA-Z0-9_]+}", scheduleDeleteJob).Methods("POST")
+  router.HandleFunc("/runningjob/get/list", runningjobGetList).Methods("GET")
+  router.HandleFunc("/runningjob/get/token/{jobToken:[a-zA-Z0-9]+}", runningjobGetToken).Methods("GET")
+  router.HandleFunc("/runningjob/stop/token/{jobToken:[a-zA-Z0-9]+}", runningjobStopToken).Methods("GET")
+  router.HandleFunc("/runningjob/tail/token/{jobToken:[a-zA-Z0-9]+}", runningjobTailToken).Methods("GET")
 
   return router
 }
@@ -67,16 +72,16 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
   return
 }
 
-// getJobList - Send a JSON representation of the JobSchedule object within job.go
-func getJobList(w http.ResponseWriter, r *http.Request) {
+// scheduleGetList - Send a JSON representation of the JobSchedule object within job.go
+func scheduleGetList(w http.ResponseWriter, r *http.Request) {
   logrus.Debug("API request for Omicrond job list")
 
   encoder := json.NewEncoder(w)
 
   // Request the current running schedule from the main scheduling loop
-  runningChanComm <- ChanComm{Signal: "getRunningSchedule", Handler: job.JobSchedule{} }
+  runningChanComm <- ChanComm{Signal: "scheduleGetList" }
   returnComm := <-runningChanComm
-  currentSchedule := returnComm.Handler
+  currentSchedule := returnComm.RunningSchedule
   apiRunningSchedule, err := currentSchedule.MakeAPIFormat()
   if err != nil {
     w.Write([]byte("Error: " + err.Error()))
@@ -91,7 +96,7 @@ func getJobList(w http.ResponseWriter, r *http.Request) {
   return
 }
 
-func getJobByLabel(w http.ResponseWriter, r *http.Request) {
+func scheduleGetJob(w http.ResponseWriter, r *http.Request) {
   logrus.Debug("API request for single Omicrond job configuration")
 
   // Assign the JSON encoder
@@ -102,9 +107,9 @@ func getJobByLabel(w http.ResponseWriter, r *http.Request) {
   jobLabelStr := vars["jobLabel"]
 
   // Request the current running schedule from the main scheduling loop
-  runningChanComm <- ChanComm{Signal: "getRunningSchedule", Handler: job.JobSchedule{} }
+  runningChanComm <- ChanComm{Signal: "scheduleGetList", RunningSchedule: job.JobSchedule{} }
   returnComm := <-runningChanComm
-  currentSchedule := returnComm.Handler
+  currentSchedule := returnComm.RunningSchedule
 
   // Retrieve the Job
   requestedJob, _, err := currentSchedule.GetJobByLabel(jobLabelStr)
@@ -114,7 +119,7 @@ func getJobByLabel(w http.ResponseWriter, r *http.Request) {
   }
 
   // Convert the job to API
-  apiRequestedJob, err := requestedJob.MakeAPIFormat(currentSchedule)
+  apiRequestedJob, err := requestedJob.MakeAPIFormat()
   if err != nil {
     http.Error(w, "{ \"Error\":\"" + err.Error() + "\"}", http.StatusBadRequest)
     return
@@ -130,7 +135,7 @@ func getJobByLabel(w http.ResponseWriter, r *http.Request) {
   return
 }
 
-func modifyJobByLabel(w http.ResponseWriter, r *http.Request) {
+func scheduleEditJob(w http.ResponseWriter, r *http.Request) {
   logrus.Debug("API request to modify Omicrond job configuration")
 
   // Convert the route variables
@@ -138,9 +143,9 @@ func modifyJobByLabel(w http.ResponseWriter, r *http.Request) {
   jobLabelStr := vars["jobLabel"]
 
   // Request the current running schedule from the main scheduling loop
-  runningChanComm <- ChanComm{Signal: "getRunningSchedule", Handler: job.JobSchedule{} }
+  runningChanComm <- ChanComm{Signal: "scheduleGetList", RunningSchedule: job.JobSchedule{} }
   returnComm := <-runningChanComm
-  currentSchedule := returnComm.Handler
+  currentSchedule := returnComm.RunningSchedule
 
   // Retrieve the Job
   requestedJob, jobIndex, err := currentSchedule.GetJobByLabel(jobLabelStr)
@@ -171,18 +176,18 @@ func modifyJobByLabel(w http.ResponseWriter, r *http.Request) {
   }
 
   // Put the new schedule into rotation
-  runningChanComm <- ChanComm{Signal: "replaceRunningSchedule", Handler: newSchedule}
+  runningChanComm <- ChanComm{Signal: "replaceRunningSchedule", RunningSchedule: newSchedule}
 
   return
 }
 
-func createJob(w http.ResponseWriter, r *http.Request) {
+func scheduleCreateJob(w http.ResponseWriter, r *http.Request) {
   logrus.Debug("API request to create Omicrond job configuration")
 
   // Request the current running schedule from the main scheduling loop
-  runningChanComm <- ChanComm{Signal: "getRunningSchedule", Handler: job.JobSchedule{} }
+  runningChanComm <- ChanComm{Signal: "scheduleGetList", RunningSchedule: job.JobSchedule{} }
   returnComm := <-runningChanComm
-  currentSchedule := returnComm.Handler
+  currentSchedule := returnComm.RunningSchedule
 
   // Create the empty Job
   newJob := job.JobConfig{}
@@ -205,12 +210,12 @@ func createJob(w http.ResponseWriter, r *http.Request) {
   }
 
   // Put the new schedule into rotation
-  runningChanComm <- ChanComm{Signal: "replaceRunningSchedule", Handler: newSchedule}
+  runningChanComm <- ChanComm{Signal: "replaceRunningSchedule", RunningSchedule: newSchedule}
 
   return
 }
 
-func deleteJobByLabel(w http.ResponseWriter, r *http.Request) {
+func scheduleDeleteJob(w http.ResponseWriter, r *http.Request) {
   logrus.Debug("API request to delete Omicrond job configuration")
 
   // Convert the route variables
@@ -218,9 +223,9 @@ func deleteJobByLabel(w http.ResponseWriter, r *http.Request) {
   jobLabelStr := vars["jobLabel"]
 
   // Request the current running schedule from the main scheduling loop
-  runningChanComm <- ChanComm{Signal: "getRunningSchedule", Handler: job.JobSchedule{} }
+  runningChanComm <- ChanComm{Signal: "scheduleGetList", RunningSchedule: job.JobSchedule{} }
   returnComm := <-runningChanComm
-  currentSchedule := returnComm.Handler
+  currentSchedule := returnComm.RunningSchedule
 
   // Retrieve the Job
   _, jobIndex, err := currentSchedule.GetJobByLabel(jobLabelStr)
@@ -241,12 +246,143 @@ func deleteJobByLabel(w http.ResponseWriter, r *http.Request) {
   }
 
   // Put the new schedule into rotation
-  runningChanComm <- ChanComm{Signal: "replaceRunningSchedule", Handler: newSchedule}
+  runningChanComm <- ChanComm{Signal: "replaceRunningSchedule", RunningSchedule: newSchedule}
 
   return
 }
 
-func parseFormFieldsIntoJobConfig (newJob *job.JobConfig, r *http.Request) (error) {
+// runningjobGetList - Send a JSON representation of the currently running jobs
+func runningjobGetList(w http.ResponseWriter, r *http.Request) {
+  logrus.Debug("API request for Omicrond running jobs")
+
+  encoder := json.NewEncoder(w)
+
+  // Request the current running schedule from the main scheduling loop
+  runningChanComm <- ChanComm{Signal: "runningjobGetList"}
+  returnComm := <-runningChanComm
+  currentRunningJobs := returnComm.RunningJobs
+  apiRunningJobs, err := currentRunningJobs.MakeAPIFormat()
+  if err != nil {
+    http.Error(w, "{ \"Error\":\"" + err.Error() + "\"}", http.StatusBadRequest)
+    return
+  }
+
+  // Return the running schedule in JSON format
+  err = encoder.Encode(apiRunningJobs)
+  if err != nil {
+    http.Error(w, "{ \"Error\":\"" + err.Error() + "\"}", http.StatusBadRequest)
+    return
+  }
+
+  return
+}
+
+func runningjobGetToken(w http.ResponseWriter, r *http.Request) {
+  logrus.Debug("API request for single running job")
+
+  // Assign the JSON encoder
+  encoder := json.NewEncoder(w)
+
+  // Convert the route variables
+  vars := mux.Vars(r)
+  jobToken := vars["jobToken"]
+
+  // Request the current running schedule from the main scheduling loop
+  runningJob, err := getRunningJobByToken(jobToken)
+  if err != nil {
+    http.Error(w, "{ \"Error\":\"" + err.Error() + "\"}", http.StatusBadRequest)
+    return
+  }
+
+  apiRunningJob, err := runningJob.MakeAPIFormat(jobToken)
+  if err != nil {
+    http.Error(w, "{ \"Error\":\"" + err.Error() + "\"}", http.StatusBadRequest)
+    return
+  }
+
+  // Return the running schedule in JSON format
+  err = encoder.Encode(apiRunningJob)
+  if err != nil {
+    http.Error(w, "{ \"Error\":\"" + err.Error() + "\"}", http.StatusBadRequest)
+    return
+  }
+
+  return
+}
+func runningjobStopToken(w http.ResponseWriter, r *http.Request) {
+  logrus.Debug("API request to stop job")
+
+  // Convert the route variables
+  vars := mux.Vars(r)
+  jobToken := vars["jobToken"]
+
+  // Request the current running schedule from the main scheduling loop
+  runningJob, err := getRunningJobByToken(jobToken)
+  if err != nil {
+    http.Error(w, "{ \"Error\":\"" + err.Error() + "\"}", http.StatusBadRequest)
+    return
+  }
+
+  runningJob.Channel <- job.ChanComm{Signal:"stop process"}
+
+  timeout, err := time.ParseDuration("15s")
+  select {
+  case <-time.After(timeout):
+    w.Write([]byte("Job could not be stopped. Times out in 15s"))
+
+  // Spawn thread on channel traffic and go back to listening
+  case comm := <-runningJob.Channel:
+    if comm.Error != nil {
+      http.Error(w, "{ \"Error\":\"" + comm.Error.Error() + "\"}", http.StatusBadRequest)
+    }
+    w.Write([]byte("Job successfully stopped"))
+  }
+
+  return
+}
+func runningjobTailToken(w http.ResponseWriter, r *http.Request) {
+
+  logrus.Debug("API request to tail job")
+  return
+
+  // Convert the route variables
+  vars := mux.Vars(r)
+  jobToken := vars["jobToken"]
+
+  // Request the current running schedule from the main scheduling loop
+  runningJob, err := getRunningJobByToken(jobToken)
+  if err != nil {
+    http.Error(w, "{ \"Error\":\"" + err.Error() + "\"}", http.StatusBadRequest)
+    return
+  }
+
+  runningJob.Channel <- job.ChanComm{Signal:"tail process", Writer: w}
+  <- runningJob.Channel
+
+  return
+}
+
+/////////////////////////////// Helper Functions /////////////////////////////////////
+
+func getRunningJobByToken(jobToken string) (job.RunningJob, error) {
+
+  var err error
+
+  // Request the current running schedule from the main scheduling loop
+  runningChanComm <- ChanComm{Signal: "runningjobGetList"}
+  returnComm := <-runningChanComm
+  currentRunningJobs := returnComm.RunningJobs
+
+  runningJob, ok := currentRunningJobs.Jobs[jobToken]
+  if !ok {
+    err = errors.New("Job with token " + jobToken + " is no longer running")
+    return job.RunningJob{}, err
+  }
+
+  return runningJob, err
+}
+
+func parseFormFieldsIntoJobConfig(newJob *job.JobConfig, r *http.Request) (error) {
 
   var err error
 

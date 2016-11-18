@@ -2,6 +2,7 @@ package daemon
 
 import (
   "time"
+  "errors"
   "github.com/Sirupsen/logrus"
   "github.com/brysearl/omicrond/conf"
   "github.com/brysearl/omicrond/job"
@@ -11,7 +12,7 @@ import (
 var runningChanComm chan api.ChanComm
 var isUnitTest bool
 
-func StartDaemon(){
+func StartDaemon() {
 
   logrus.Info("Reading job configuration file: " + conf.Attr.JobConfigPath)
   var schedule job.JobSchedule
@@ -80,7 +81,8 @@ func startSchedulingLoop(schedule job.JobSchedule, jobConfig string) {
           newJob := job.RunningJob{
             Token: runToken,
             Config: schedule.Job[jobIndex],
-            Channel: make(chan string)}
+            Channel: make(chan job.ChanComm),
+            StartTime: time.Now()}
 
           // Add the tracking token to the tracker
           logrus.Debug("Adding job " + runToken + " to tracker")
@@ -89,11 +91,11 @@ func startSchedulingLoop(schedule job.JobSchedule, jobConfig string) {
           Running.Unlock()
 
           // Split off the job into a goroutine
-          go func(Running job.RunningJobTracker, newJob job.RunningJob, runToken string, isUnitTest bool) {
+          go func(Running *job.RunningJobTracker, newJob job.RunningJob, runToken string, isUnitTest bool) {
 
             // Start the job
             if isUnitTest != true {
-              newJob.Run()
+              newJob.Run(Running)
             }
 
             // On completion, remove the tracking token from the tracker
@@ -109,7 +111,7 @@ func startSchedulingLoop(schedule job.JobSchedule, jobConfig string) {
             } else {
               logrus.Error("Could not find runToken on completion")
             }
-          }(Running, newJob, runToken, isUnitTest)
+          }(&Running, newJob, runToken, isUnitTest)
         }
       }
 
@@ -118,13 +120,14 @@ func startSchedulingLoop(schedule job.JobSchedule, jobConfig string) {
 
     } else {
 
-      // Determine the amount of free time available to listen to a channel
-      timeout := time.Now().Truncate(time.Minute).Add(time.Minute).Sub(time.Now())
-      logrus.Debug("Listening to channel for the next " + timeout.String() + " seconds")
-
       // Between scheduling, be open to schedule changes via API
       stop := false
       for stop == false {
+
+        // Determine the amount of free time available to listen to a channel
+        timeout := time.Now().Truncate(time.Minute).Add(time.Minute).Sub(time.Now())
+        logrus.Debug("Listening to channel for the next " + timeout.String() + " seconds")
+
         select {
 
         // Timeout a second before the next minute and break out of channel loop
@@ -136,28 +139,35 @@ func startSchedulingLoop(schedule job.JobSchedule, jobConfig string) {
         case incomingChanComm := <-runningChanComm:
 
         // Spawn thread so we can get back to listening
-          go func() {
-            // Send the running schedule to a requestor over the same channel
-            if incomingChanComm.Signal == "getRunningSchedule" {
-              runningChanComm <- api.ChanComm{Handler: schedule, Signal: "getRunningSchedule"}
+          Running.RLock()
+          go func(schedule job.JobSchedule, running job.RunningJobTracker) {
 
-            } else if incomingChanComm.Signal == "replaceRunningSchedule" {
+            // Send the running schedule to a requestor over the same channel
+            switch incomingChanComm.Signal {
+            case "scheduleGetList":
+              runningChanComm <- api.ChanComm{RunningSchedule: schedule, Signal: "scheduleGetList"}
+            case "runningjobGetList":
+              runningChanComm <- api.ChanComm{RunningJobs: running, Signal: "runningjobGetList"}
+            case "replaceRunningSchedule":
               // Replace the running schedule with that of the requestor
-              err := incomingChanComm.Handler.CheckConfig()
+              err := incomingChanComm.RunningSchedule.CheckConfig()
               if err != nil {
                 logrus.Error(err)
               }
 
               logrus.Debug("Schedule Refreshed")
               if isUnitTest != true {
-                incomingChanComm.Handler.WriteJobConfig(jobConfig)
+                incomingChanComm.RunningSchedule.WriteJobConfig(jobConfig)
               }
-              schedule = incomingChanComm.Handler
-            } else if incomingChanComm.Signal == "shutdown" {
+              schedule = incomingChanComm.RunningSchedule
+            case "shutdown":
               logrus.Info("Recieved shutdown command.  Goodbye...")
               return
+            default:
+              runningChanComm <- api.ChanComm{Error: errors.New("API ChanComm signal unknown or deprecated: " + incomingChanComm.Signal)}
             }
-          }()
+          }(schedule, Running)
+          Running.RUnlock()
         }
       }
     }
