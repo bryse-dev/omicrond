@@ -10,6 +10,8 @@ import (
   "crypto/rand"
   "sync"
   "time"
+  "net/http"
+  "errors"
   "github.com/Sirupsen/logrus"
   "github.com/brysearl/omicrond/conf"
 )
@@ -22,7 +24,7 @@ type RunningJobTracker struct {
 type RunningJob struct {
   Token     string
   Config    JobConfig
-  Channel   chan string
+  Channel   chan ChanComm
   Exec      *exec.Cmd
   StdOut    io.ReadCloser
   StdErr    io.ReadCloser
@@ -41,6 +43,12 @@ type RunningJobAPI struct {
   MemUse      int
 
   Config      JobConfigAPI
+}
+
+type ChanComm struct {
+  Signal string
+  Error  error
+  Writer http.ResponseWriter
 }
 
 // MakeAPIFormat - Convert internal object into external data
@@ -85,24 +93,30 @@ func (j *RunningJob) MakeAPIFormat(jobToken string) (RunningJobAPI, error) {
 }
 
 // Run - Executes command
-func (r *RunningJob) Run() {
+func (r *RunningJob) Run(running *RunningJobTracker) {
 
   var err error
 
   // Make the command executable
+  running.Lock()
   r.Exec = r.buildCommand()
+  running.Unlock()
   if err != nil {
     logrus.Error(err)
     return
   }
 
   // Create handles for both stdin and stdout
+  running.Lock()
   r.StdOut, err = r.Exec.StdoutPipe()
+  running.Unlock()
   if err != nil {
     logrus.Error(err)
     return
   }
+  running.Lock()
   r.StdErr, err = r.Exec.StderrPipe()
+  running.Unlock()
   if err != nil {
     logrus.Error(err)
     return
@@ -153,25 +167,7 @@ func (r *RunningJob) Run() {
   }(r)
 
   // Open up channel to extend to API
-  go func(r *RunningJob) {
-    stop := false
-    for stop == false {
-      command := <-r.Channel
-      switch command {
-      case "end":
-        stop = true
-      case "stop process":
-        err := r.Exec.Process.Kill()
-        if err != nil {
-          r.Channel <- "failed"
-        }
-        r.Channel <- "success"
-      default:
-        r.Channel <- "unknown command"
-      }
-    }
-    logrus.Debug("Stopped command channel")
-  }(r)
+  go r.listenOnChannel(stdOutScanner)
 
   // Start the command
   logrus.Info("Running [" + r.Config.Label + "]: " + strings.Join(r.Exec.Args, " "))
@@ -184,10 +180,52 @@ func (r *RunningJob) Run() {
   // Wait for the command to complete
   logrus.Debug("Waiting for command to complete")
   r.Exec.Wait()
-  r.Channel <- "end"
+  r.Channel <- ChanComm{Signal:"end"}
   logrus.Debug("Command completed")
 
   return
+}
+
+// listenOnChannel - open up channel communication for API commands
+func (r *RunningJob) listenOnChannel(stdOutScanner *bufio.Scanner) {
+  stop := false
+  for stop == false {
+    comm := <-r.Channel
+    switch comm.Signal {
+    case "end":
+      stop = true
+    case "stop process":
+      err := r.Exec.Process.Kill()
+      if err != nil {
+        r.Channel <- ChanComm{Error: errors.New("failed")}
+      }
+      r.Channel <- ChanComm{Signal: "success"}
+    case "tail process":
+
+      func(comm ChanComm, stdOutScanner *bufio.Scanner) {
+        for stdOutScanner.Scan() {
+          logrus.Debug("should see " + stdOutScanner.Text())
+          //fmt.Fprintf(comm.Writer, stdOutScanner.Text())
+          //bufrw.WriteString(stdOutScanner.Text())
+          comm.Writer.Write(stdOutScanner.Bytes())
+          f, ok := comm.Writer.(http.Flusher)
+          if ok {
+            logrus.Info("Flushing")
+            f.Flush()
+          }
+          //bufrw.Flush()
+        }
+
+
+      }(comm, stdOutScanner)
+      logrus.Info("HERE")
+      r.Channel <- ChanComm{Signal: "success"}
+    //}(conn, stdOutScanner, bufrw)
+    default:
+      r.Channel <- ChanComm{Error: errors.New("unknown command")}
+    }
+  }
+  logrus.Debug("Stopped command channel")
 }
 
 // buildCommand - Convert string to executablte exec.Cmd type

@@ -323,7 +323,7 @@ func runningjobStopToken(w http.ResponseWriter, r *http.Request) {
     return
   }
 
-  runningJob.Channel <- "stop process"
+  runningJob.Channel <- job.ChanComm{Signal:"stop process"}
 
   timeout, err := time.ParseDuration("15s")
   select {
@@ -331,13 +331,33 @@ func runningjobStopToken(w http.ResponseWriter, r *http.Request) {
     w.Write([]byte("Job could not be stopped. Times out in 15s"))
 
   // Spawn thread on channel traffic and go back to listening
-  case _ = <-runningJob.Channel:
+  case comm := <-runningJob.Channel:
+    if comm.Error != nil {
+      http.Error(w, "{ \"Error\":\"" + comm.Error.Error() + "\"}", http.StatusBadRequest)
+    }
     w.Write([]byte("Job successfully stopped"))
   }
 
   return
 }
 func runningjobTailToken(w http.ResponseWriter, r *http.Request) {
+
+  logrus.Debug("API request to tail job")
+  return
+
+  // Convert the route variables
+  vars := mux.Vars(r)
+  jobToken := vars["jobToken"]
+
+  // Request the current running schedule from the main scheduling loop
+  runningJob, err := getRunningJobByToken(jobToken)
+  if err != nil {
+    http.Error(w, "{ \"Error\":\"" + err.Error() + "\"}", http.StatusBadRequest)
+    return
+  }
+
+  runningJob.Channel <- job.ChanComm{Signal:"tail process", Writer: w}
+  <- runningJob.Channel
 
   return
 }

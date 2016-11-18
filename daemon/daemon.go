@@ -81,7 +81,7 @@ func startSchedulingLoop(schedule job.JobSchedule, jobConfig string) {
           newJob := job.RunningJob{
             Token: runToken,
             Config: schedule.Job[jobIndex],
-            Channel: make(chan string),
+            Channel: make(chan job.ChanComm),
             StartTime: time.Now()}
 
           // Add the tracking token to the tracker
@@ -91,11 +91,11 @@ func startSchedulingLoop(schedule job.JobSchedule, jobConfig string) {
           Running.Unlock()
 
           // Split off the job into a goroutine
-          go func(Running job.RunningJobTracker, newJob job.RunningJob, runToken string, isUnitTest bool) {
+          go func(Running *job.RunningJobTracker, newJob job.RunningJob, runToken string, isUnitTest bool) {
 
             // Start the job
             if isUnitTest != true {
-              newJob.Run()
+              newJob.Run(Running)
             }
 
             // On completion, remove the tracking token from the tracker
@@ -111,7 +111,7 @@ func startSchedulingLoop(schedule job.JobSchedule, jobConfig string) {
             } else {
               logrus.Error("Could not find runToken on completion")
             }
-          }(Running, newJob, runToken, isUnitTest)
+          }(&Running, newJob, runToken, isUnitTest)
         }
       }
 
