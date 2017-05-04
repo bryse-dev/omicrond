@@ -17,7 +17,7 @@ import (
 )
 
 type RunningJobTracker struct {
-  sync.RWMutex
+  Sync *sync.RWMutex
   Jobs map[string]RunningJob
 }
 
@@ -98,25 +98,25 @@ func (r *RunningJob) Run(running *RunningJobTracker) {
   var err error
 
   // Make the command executable
-  running.Lock()
+  running.Sync.Lock()
   r.Exec = r.buildCommand()
-  running.Unlock()
+  running.Sync.Unlock()
   if err != nil {
     logrus.Error(err)
     return
   }
 
   // Create handles for both stdin and stdout
-  running.Lock()
+  running.Sync.Lock()
   r.StdOut, err = r.Exec.StdoutPipe()
-  running.Unlock()
+  running.Sync.Unlock()
   if err != nil {
     logrus.Error(err)
     return
   }
-  running.Lock()
+  running.Sync.Lock()
   r.StdErr, err = r.Exec.StderrPipe()
-  running.Unlock()
+  running.Sync.Unlock()
   if err != nil {
     logrus.Error(err)
     return

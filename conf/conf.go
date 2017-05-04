@@ -25,7 +25,7 @@ func init() {
   // Set default configurations
   Attr.BaseDir = "/opt/omicrond"
   Attr.SocketPath = Attr.BaseDir + "/omicrond.sock"
-  Attr.JobConfigPath = Attr.BaseDir + "/sample/samplejobConf.toml"
+  Attr.JobConfigPath = Attr.BaseDir + "/sample/sampleJobConf.toml"
   Attr.LoggingPath = Attr.BaseDir + "/logs"
   Attr.LogLevel = 0
   Attr.Port = 51515

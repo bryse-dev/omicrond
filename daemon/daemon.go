@@ -7,6 +7,7 @@ import (
   "github.com/brysearl/omicrond/conf"
   "github.com/brysearl/omicrond/job"
   "github.com/brysearl/omicrond/api"
+  "sync"
 )
 
 var runningChanComm chan api.ChanComm
@@ -38,6 +39,7 @@ func startSchedulingLoop(schedule job.JobSchedule, jobConfig string) {
 
   // Keep track of running jobs
   Running := job.RunningJobTracker{}
+  Running.Sync = new(sync.RWMutex)
   Running.Jobs = make(map[string]job.RunningJob)
 
   // To infinity, and beyond
@@ -61,14 +63,14 @@ func startSchedulingLoop(schedule job.JobSchedule, jobConfig string) {
           // Check to see if its running and skip if locking attribute enabled
           if schedule.Job[jobIndex].Locking == true {
             var skip bool
-            Running.RLock()
+            Running.Sync.RLock()
             for runToken, _ := range Running.Jobs {
               if schedule.Job[jobIndex].Label == Running.Jobs[runToken].Config.Label {
                 skip = true
                 break
               }
             }
-            Running.RUnlock()
+            Running.Sync.RUnlock()
 
             if skip {
               logrus.Info("[" + schedule.Job[jobIndex].Label + "] currently running and locked.  Skipping.")
@@ -86,9 +88,9 @@ func startSchedulingLoop(schedule job.JobSchedule, jobConfig string) {
 
           // Add the tracking token to the tracker
           logrus.Debug("Adding job " + runToken + " to tracker")
-          Running.Lock()
+          Running.Sync.Lock()
           Running.Jobs[runToken] = newJob
-          Running.Unlock()
+          Running.Sync.Unlock()
 
           // Split off the job into a goroutine
           go func(Running *job.RunningJobTracker, newJob job.RunningJob, runToken string, isUnitTest bool) {
@@ -99,15 +101,15 @@ func startSchedulingLoop(schedule job.JobSchedule, jobConfig string) {
             }
 
             // On completion, remove the tracking token from the tracker
-            Running.RLock()
+            Running.Sync.RLock()
             _, ok := Running.Jobs[runToken]
-            Running.RUnlock()
+            Running.Sync.RUnlock()
 
             if ok {
               logrus.Debug("Removing job " + runToken + " from tracker")
-              Running.Lock()
+              Running.Sync.Lock()
               delete(Running.Jobs, runToken)
-              Running.Unlock()
+              Running.Sync.Unlock()
             } else {
               logrus.Error("Could not find runToken on completion")
             }
@@ -139,7 +141,7 @@ func startSchedulingLoop(schedule job.JobSchedule, jobConfig string) {
         case incomingChanComm := <-runningChanComm:
 
         // Spawn thread so we can get back to listening
-          Running.RLock()
+          Running.Sync.RLock()
           go func(schedule job.JobSchedule, running job.RunningJobTracker) {
 
             // Send the running schedule to a requestor over the same channel
@@ -167,7 +169,7 @@ func startSchedulingLoop(schedule job.JobSchedule, jobConfig string) {
               runningChanComm <- api.ChanComm{Error: errors.New("API ChanComm signal unknown or deprecated: " + incomingChanComm.Signal)}
             }
           }(schedule, Running)
-          Running.RUnlock()
+          Running.Sync.RUnlock()
         }
       }
     }
