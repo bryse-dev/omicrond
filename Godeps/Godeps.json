@@ -1,0 +1,30 @@
+{
+	"ImportPath": "github.com/brysearl/omicrond",
+	"GoVersion": "go1.8",
+	"GodepVersion": "v79",
+	"Deps": [
+		{
+			"ImportPath": "github.com/BurntSushi/toml",
+			"Comment": "v0.2.0-21-g9906417",
+			"Rev": "99064174e013895bbd9b025c31100bd1d9b590ca"
+		},
+		{
+			"ImportPath": "github.com/Sirupsen/logrus",
+			"Comment": "v0.10.0-19-gf3cfb45",
+			"Rev": "f3cfb454f4c209e6668c95216c4744b8fddb2356"
+		},
+		{
+			"ImportPath": "github.com/goji/httpauth",
+			"Rev": "2da839ab0f4df05a6db5eb277995589dadbd4fb9"
+		},
+		{
+			"ImportPath": "github.com/gorilla/mux",
+			"Comment": "v1.1-27-g757bef9",
+			"Rev": "757bef944d0f21880861c2dd9c871ca543023cba"
+		},
+		{
+			"ImportPath": "golang.org/x/sys/unix",
+			"Rev": "b90f89a1e7a9c1f6b918820b3daa7f08488c8594"
+		}
+	]
+}
